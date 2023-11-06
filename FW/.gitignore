@@ -1,0 +1,8 @@
+# Helper files
+simavr/*
+
+# Generated files
+*.o
+*.hex
+*.elf
+*.vcd
