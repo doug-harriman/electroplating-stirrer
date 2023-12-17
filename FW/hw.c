@@ -14,20 +14,26 @@ void hw_init(void)
     // TCCR0B |= (1 << CS01) | (1 << CS00);   // Set prescaler to 64
     // OCR0A = 0; // No output initially
 
-    // Configure ATTiny85 pin PB0 as output
-    // DDRB |= (1 << PB0);
-    DDRB |= (1 << PWM_PIN);
+    // MCU: ATtiny85-20P (U1)
+    // Datasheet: http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf
 
-    // ADC configuration
-    // Configure PB2 for analog input.
-    DDRB &= ~(1 << DDB2);
+    // Net SERVO: ATtiny85-20P (U1) pin 7 -> SERVO (J1) pin 2
+    // ATtiny85-20P: pin 7 = PB2
+    // PB2 as output
+    DDRB |= (1 << PIN_SERVO);
 
+    // Net V-POT: ATtiny85-20P (U1) pin 2 <- POT 100k (RV1) pin 2
+    // ATtiny85-20P: pin 2 = XTAL1/PB3
+    // PB3 as input
+    DDRB &= ~(1 << PIN_POT_100k);
+
+    // Configure PIN_POT_100k as ADC input
     // Select ADC channel 2.
     // Zeros in REFSx uses Vcc as reference
     ADMUX |= (1 << ADLAR); // ADLAR = 1, left adjust result
 
-    // Single ended conversion on PB2, bit 0 set.
-    ADMUX |= 1;
+    // Select PB3 (ADC3)
+    ADMUX |= (1 << MUX0) | (1 << MUX1); //
 
     // Enable conversions
     ADCSRA |= (1 << ADEN);

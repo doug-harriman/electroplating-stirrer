@@ -45,11 +45,11 @@ int main(void)
         for (uint8_t i = 0; i < 5; i++)
         {
             // On time
-            PORTB |= (1 << PWM_PIN);
+            PORTB |= (1 << PIN_SERVO);
             _delay_loop_2(period_on_us >> 2);
 
             // Off time
-            PORTB &= ~(1 << PWM_PIN);
+            PORTB &= ~(1 << PIN_SERVO);
             _delay_loop_2((period_us - period_on_us) >> 2);
         }
 
