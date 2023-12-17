@@ -3,6 +3,19 @@
 # trace back to the MCU pin and determine if it is an input or output.
 # Then we can generate commments to help with pin configuration.
 
+# This works OK.
+# When changed analog input pin had to reconfigure the ADC mux.
+# Would be nice to have that happen automatically.
+# Need to know if pin is used as a digital or analog input.
+# Input types: diginal binary, digital PWM(timed), analog (ABC).
+# Output types: digital binary, digital PWM(timed), analog(DAC).
+# Can we determine if we have a VREF for ADC?
+# How about a simple config file to specify some of these things?
+#
+# TODO: Separate out .h and .c portions of generated code.
+# TODO: Integrate w/COG and make part of the build.
+
+
 from kinparse import parse_netlist
 
 # TODO: Define some macros that define pin based on connection.
@@ -73,6 +86,10 @@ for net, nodes in nets.items():
     print(
         f"  // Net {net}: {mcu_name} ({mcu['ref']}) pin {mcu['num']} {mcu_dir_arrow} {device_name} ({device['ref']}) pin {device['num']}"
     )
+
+    # MCU pin/port mapping
+    print(f"  // {mcu_name}: pin {mcu['num']} = {mcu['function']}")
+
     # MCU Port extraction
     # TODO: This should be smarter in looking for PxYY name.
     fcn = mcu["function"].split("/")[-1]
