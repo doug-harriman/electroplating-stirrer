@@ -1,0 +1,51 @@
+# Config file for pcb2gcode, v2.5.0
+# Notes:
+# - grbl does not support pcb2gocde's autoleveling implementation.  Boo.
+# - KiCAD Gerber expert: disable the "Use extended X2 format" option.
+# - If the top of the PCB has a Z-height of 0, then all Z heights in this file should be negative.
+
+# KiCAD & grbl set up to use metric units.
+metric=1
+metricoutput=1
+
+output-dir=gcode
+basename=scripted
+
+# Common options
+zsafe=3
+zchange=20
+path-finding-limit=20
+nog64=1  # Grbl does not support G64
+
+# Drill Config
+drill=servo-control-module.drl
+zdrill=-1.45
+drill-feed=100
+drill-speed=1000
+drill-side=back
+drills-available=0.9,1.2
+nog91-1=1
+nog81=1
+
+# Isolation routing
+# Back side only
+back=servo-control-module-B_Cu.gbr
+mill-diameters=0.16
+zwork=-0.05
+mill-feed=100
+mill-speed=1000
+mill-vertfeed=300
+
+# Cutout
+outline=servo-control-module-Edge_Cuts.gbr
+cutter-diameter=3.175
+zcut=-1.45
+cut-feed=300
+cut-vertfeed=300
+cut-speed=1000
+cut-infeed=0.5
+cut-side=back
+bridges=1
+bridgesnum=3
+zbridges=2
+
