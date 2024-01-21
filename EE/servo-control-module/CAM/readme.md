@@ -44,3 +44,22 @@ The 60 degree triangular V-cut bits worked very well.  Robust bit, and isolated 
         * `F` - Z-probe speed, don't go lower than 20 (mm/sec).
         * `D` - Grid spacing.  Defaults to 10 (mm).
 
+## Soldermask & Silkscreen
+
+Intended process is to apply two layers of soldermask/ink to the PCB, then use my UV laser to ablate the areas that I don't want filled in.  Overall technique from: https://www.youtube.com/watch?v=NuJlgw7E7vg.  Essentially:
+
+1. Lay down & cure the base soldermask (color of choice)
+2. Ablate soldermask in areas where you want silkscreen.
+3. Apply white ink/soldermask & cure
+4. Ablate solder pads. 
+
+### Software Tooling
+
+While FlatCAM is a very impressive piece of Python GUI software, it's cumbersome to have to do a lot of manual stuff.  Per above, `PCB2GCODE` does a great job with the isolation routing, edge routing and drilling G-code file generation.  Once you've properly parameterized your system, it's a two second opeation to go from Gerber to G-Code.  Looking to add in the next steps in that tooling for laser ablation paths.
+
+We need to go from Gerber to G-Code.  It looks like there are high quality, maintained Python modules to get us there via:
+1. Convert Gerber to SVG with [Gerbonara](https://gerbolyze.gitlab.io/gerbonara/#).
+2. Convert SVG to G-Code with [SvgToGcode](https://github.com/johannesnoordanus/SvgToGcode).  Note that this is a fork of another version of the same file.  It seems unlikely the recommended `pip install` command will install the maintained fork, so I intend to pull a copy via `git` and install via `pip -e <path to source>`.
+
+
+
