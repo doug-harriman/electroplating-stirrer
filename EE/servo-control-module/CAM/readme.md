@@ -61,5 +61,21 @@ We need to go from Gerber to G-Code.  It looks like there are high quality, main
 1. Convert Gerber to SVG with [Gerbonara](https://gerbolyze.gitlab.io/gerbonara/#).
 2. Convert SVG to G-Code with [SvgToGcode](https://github.com/johannesnoordanus/SvgToGcode).  Note that this is a fork of another version of the same file.  It seems unlikely the recommended `pip install` command will install the maintained fork, so I intend to pull a copy via `git` and install via `pip -e <path to source>`.
 
+## Overall Process
 
+Note: For all operations, keep grbl software running and maintain XY home position.
 
+1. Mount bare PCB to a flat but sacrificial material which is clamped to the mill bed.  PCB mounting via glued tape attached to both surfaces.  Doublesided tape will work well also.
+2. If the PCB is double sided, drill corner holes that can be fitted with dowell pins for locating. 
+3. Autolevel board
+4. Isolation route PCB back side.  Start with back side to minimize flips (assuming silksceen is front side only).
+5. If double sided: clean PCB apply and cure back side soldermask, flip board, repeat steps 3 & 4 for front side.
+6. Clean PCB, apply & cure soldermask.
+8. Mount laser.
+9. Ablate silkscreen image.
+10. Apply & cure silkscreen ink
+11. Ablate soldermask for solder pads
+12. Remount spindle
+13. Drill
+14. Edge route
+15. Tin exposed pads.
