@@ -345,6 +345,8 @@ class Gerber2Gcode:
         # TODO: Add each primitive to a NetworkX graph.
         # TODO: Solve the traveling salesman problem from 0,0 to order the nodes for processing.
         # TODO: After ordering, convert the graph to G-Code.
+        # TODO: Need to support translation & rotation of my G-code objects
+        # TODO: Need to support generating infill passes for my g-code objects.
         for obj in self._gerber.objects:
             prim = list(obj.to_primitives())[0]
 
