@@ -8,8 +8,6 @@ import os
 from typing import Union
 
 import gerbonara
-from svg_to_gcode.svg_parser import parse_file
-from svg_to_gcode.compiler import Compiler, interfaces
 
 # Configue logging
 logging.basicConfig(
@@ -113,7 +111,7 @@ class GerberJob:
         self._project_rev = self.data["GeneralSpecs"]["ProjectId"]["Revision"]
         if self._project_rev == "rev?":
             self._project_rev = None
-        logging.debug(f"Project: {self.project_name}, rev: {self.project_rev}")
+        self._logger.debug(f"Project: {self.project_name}, rev: {self.project_rev}")
 
         # Only 1 and 2 layer boards supported
         layers = self.data["GeneralSpecs"]["LayerNumber"]
@@ -171,16 +169,40 @@ class GerberJob:
 
         return silk
 
+    def mask(self) -> list:
+        """
+        Returns the names and polarities of the solder mask layers.
+
+        Returns:
+            list: List of solder mask layer files.
+        """
+
+        mask = []
+        for fileattr in self.data["FilesAttributes"]:
+            if "_Mask" in fileattr["Path"]:
+                d = {}
+                d["Path"] = fileattr["Path"]
+                d["Polarity"] = fileattr["FilePolarity"]
+                mask.append(d)
+
+        return mask
+
     def to_gcode(self):
         """
         Converts all Gerber files the GerberJob to G-Code.
         """
 
         # Process files by type.
-        silks = self.silkscreen()
-        for silk in silks:
-            self._logger.debug(f"Silkscreen: {silk['Path']}")
-            g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
+        # silks = self.silkscreen()
+        # for silk in silks:
+        #     self._logger.debug(f"Silkscreen: {silk['Path']}")
+        #     g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
+        #     g2g.to_gcode()
+
+        masks = self.mask()
+        for mask in masks:
+            self._logger.debug(f"Mask: {mask['Path']}")
+            g2g = Gerber2Gcode(mask["Path"], mask["Polarity"])
             g2g.to_gcode()
 
 
@@ -309,28 +331,50 @@ class Gerber2Gcode:
             if not isinstance(filename, str):
                 raise TypeError(f"filename must be a string, not {type(filename)}")
 
-        # First, convert to SVG.
-        svg_filename = self.to_svg()
-
-        self._logger.debug(f"Generating G-Code file: {filename}")
-
         # svg_to_gcode config per:
         # https://github.com/johannesnoordanus/SvgToGcode
         gcode_params = {
-            "maximum_laser_power": 1000,
-            "movement_speed": 900,
-            "pass_depth": 5,
+            "minimum_laser_power": 400,  # 40%
+            "maximum_laser_power": 1000,  # 40%
+            "movement_speed": 800,  # 800mm/s
+            "pass_depth": 0,
         }
 
-        gcode_compiler = Compiler(interfaces.Gcode, params=gcode_params)
+        # Rectangle: x,y is center coord.
+        # Line: if (x1,y1) == (x2,y2) then it's a Circle of dia=width.
+        # TODO: Add each primitive to a NetworkX graph.
+        # TODO: Solve the traveling salesman problem from 0,0 to order the nodes for processing.
+        # TODO: After ordering, convert the graph to G-Code.
+        for obj in self._gerber.objects:
+            prim = list(obj.to_primitives())[0]
 
-        # Parse an svg file into geometric curves, and compile to gcode
-        curves = parse_file(svg_filename)
-        gcode_compiler.append_curves(curves)
+            # Line objects with no length are circles, override those.
+            if isinstance(prim, gerbonara.graphic_primitives.Line):
+                if prim.x1 == prim.x2 and prim.y1 == prim.y2:
+                    prim = gerbonara.graphic_primitives.Circle(
+                        prim.x1, prim.y1, prim.width / 2
+                    )
 
-        # do final compilation and emit gcode 2 ('passes') times
-        passes = 1
-        gcode_compiler.compile_to_file(filename, curves, passes)
+            self._logger.debug(f"{prim}")
+            if isinstance(prim, gerbonara.graphic_primitives.Rectangle):
+                pass
+            elif isinstance(prim, gerbonara.graphic_primitives.Line):
+                pass
+
+            elif isinstance(prim, gerbonara.graphic_primitives.Circle):
+                pass
+            elif isinstance(prim, gerbonara.graphic_primitives.Arc):
+                pass
+            elif isinstance(prim, gerbonara.graphic_primitives.ArcPoly):
+                pass
+            else:
+                msg = f"Unsupported primitive: {type(prim)}"
+                self._logger.warning(msg)
+                raise ValueError(msg)
+        # Clean up
+
+        # Need to figure out how to fill in dark areas.
+        # Do that as part of a Shape in gcode_doc.py
 
         return filename
 

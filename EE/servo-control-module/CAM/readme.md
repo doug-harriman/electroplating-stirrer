@@ -51,7 +51,7 @@ Intended process is to apply two layers of soldermask/ink to the PCB, then use m
 1. Lay down & cure the base soldermask (color of choice)
 2. Ablate soldermask in areas where you want silkscreen.
 3. Apply white ink/soldermask & cure
-4. Ablate solder pads. 
+4. Ablate solder pads.
 
 ### Software Tooling
 
@@ -59,14 +59,34 @@ While FlatCAM is a very impressive piece of Python GUI software, it's cumbersome
 
 We need to go from Gerber to G-Code.  It looks like there are high quality, maintained Python modules to get us there via:
 1. Convert Gerber to SVG with [Gerbonara](https://gerbolyze.gitlab.io/gerbonara/#).
+
+TODO: Gerbonara graphic primitives look reasonable to convert to G-code.
+      Can use my gcode utilities in `gcode_doc.py` with some extensions to do so.
+
+This one kind of works: https://github.com/pjpscriv/py-svg2gcode
+
+Failed:
 2. Convert SVG to G-Code with [SvgToGcode](https://github.com/johannesnoordanus/SvgToGcode).  Note that this is a fork of another version of the same file.  It seems unlikely the recommended `pip install` command will install the maintained fork, so I intend to pull a copy via `git` and install via `pip -e <path to source>`.
+
+
+Status: Initial working G-code from Gerber in `gbr2grbl.py`
+
+To do:
+
+- Looks like need to flip bottom side image.
+- Verify home position is correct.
+- Add in laser G-code parameters as TOML config file.
+- Add generation of other g-code files handled by `pcb2gcode` (drill, edge route, isolation route).
+- Parameterize `pcb2gcode` to use the same TOML config file.
+- Use `.gbrjob` data for `pcb2gcode` config.  Stackup has PCB and Cu thicknesses.
+- Make sure I have the stackup config correct in the KiCAD PCB file.
 
 ## Overall Process
 
 Note: For all operations, keep grbl software running and maintain XY home position.
 
 1. Mount bare PCB to a flat but sacrificial material which is clamped to the mill bed.  PCB mounting via glued tape attached to both surfaces.  Doublesided tape will work well also.
-2. If the PCB is double sided, drill corner holes that can be fitted with dowell pins for locating. 
+2. If the PCB is double sided, drill corner holes that can be fitted with dowell pins for locating.
 3. Autolevel board
 4. Isolation route PCB back side.  Start with back side to minimize flips (assuming silksceen is front side only).
 5. If double sided: clean PCB apply and cure back side soldermask, flip board, repeat steps 3 & 4 for front side.
