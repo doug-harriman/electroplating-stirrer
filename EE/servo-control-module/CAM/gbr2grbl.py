@@ -8,6 +8,9 @@ import os
 from typing import Union
 
 import gerbonara
+import networkx as nx
+
+import gcode_doc as gcd
 
 # Configue logging
 logging.basicConfig(
@@ -323,31 +326,34 @@ class Gerber2Gcode:
 
         # G-Code file name
         if filename is None:
+            if self.filename is None:
+                raise ValueError("No Gerber file loaded")
             filename = (
                 os.path.splitext(os.path.basename(self.filename))[0]
                 + self._gcode_extension
             )
         else:
             if not isinstance(filename, str):
-                raise TypeError(f"filename must be a string, not {type(filename)}")
+                msg = f"filename must be a string, not {type(filename)}"
+                self._logger.error(msg)
+                raise TypeError(msg)
 
-        # svg_to_gcode config per:
-        # https://github.com/johannesnoordanus/SvgToGcode
-        gcode_params = {
-            "minimum_laser_power": 400,  # 40%
-            "maximum_laser_power": 1000,  # 40%
-            "movement_speed": 800,  # 800mm/s
-            "pass_depth": 0,
-        }
+        if self._gerber is None:
+            msg = "No Gerber file loaded"
+            self._logger.error(msg)
+            raise ValueError(msg)
 
         # Rectangle: x,y is center coord.
-        # Line: if (x1,y1) == (x2,y2) then it's a Circle of dia=width.
-        # TODO: Add each primitive to a NetworkX graph.
-        # TODO: Solve the traveling salesman problem from 0,0 to order the nodes for processing.
-        # TODO: After ordering, convert the graph to G-Code.
         # TODO: Need to support translation & rotation of my G-code objects
         # TODO: Need to support generating infill passes for my g-code objects.
+
+        # G-code document
+        doc = gcd.Doc()
+        doc.layout = gcd.GraphLayout()
+
+        # Process Gerber geometry objects.
         for obj in self._gerber.objects:
+            shape = None
             prim = list(obj.to_primitives())[0]
 
             # Line objects with no length are circles, override those.
@@ -359,24 +365,32 @@ class Gerber2Gcode:
 
             self._logger.debug(f"{prim}")
             if isinstance(prim, gerbonara.graphic_primitives.Rectangle):
-                pass
-            elif isinstance(prim, gerbonara.graphic_primitives.Line):
-                pass
+                shape = gcd.Rectangle(
+                    prim.x,
+                    prim.y,
+                    prim.w,
+                    prim.h,
+                )
 
+            elif isinstance(prim, gerbonara.graphic_primitives.Line):
+                self._logger.error("Line primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.Circle):
-                pass
+                self._logger.error("Circle primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.Arc):
-                pass
+                self._logger.error("Arc primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.ArcPoly):
-                pass
+                self._logger.error("ArcPoly primitive not supported")
             else:
                 msg = f"Unsupported primitive: {type(prim)}"
                 self._logger.warning(msg)
                 raise ValueError(msg)
-        # Clean up
 
-        # Need to figure out how to fill in dark areas.
-        # Do that as part of a Shape in gcode_doc.py
+            # Add the shape to the document.
+            if shape:
+                doc.AddChild(shape)
+
+        # Write the G-Code file.
+        doc.GCode(filename)
 
         return filename
 
