@@ -2,3 +2,5 @@
 *.svg
 *.gcode
 *.gbr
+
+__pycache__/*
