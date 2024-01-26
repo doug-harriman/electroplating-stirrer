@@ -370,6 +370,7 @@ class Gerber2Gcode:
                     prim.y,
                     prim.w,
                     prim.h,
+                    prim.rotation,
                 )
 
             elif isinstance(prim, gerbonara.graphic_primitives.Line):
