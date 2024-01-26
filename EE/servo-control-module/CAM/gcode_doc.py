@@ -243,6 +243,8 @@ class CellLayout(Layout):
     def __init__(self):
         super().__init__()
 
+        print("*** WARNING: Not ported to update point list implementation. ***")
+
     def AddChild(self, child):
         """
         Set Cell child object.
@@ -337,6 +339,8 @@ class GridLayout(Layout):
         self._grid = [[0] * columns for _ in range(rows)]
         self._widths = np.zeros((rows, columns))
         self._heights = np.zeros((rows, columns))
+
+        print("*** WARNING: Not ported to update point list implementation. ***")
 
     @property
     def cell_padding_width(self) -> float:
@@ -914,6 +918,8 @@ class Shape:
         self._speed_print = speed_print
         self._laser_power = laser_power
 
+        self._is_closed = False
+
     def GCode(self, doc: Doc) -> str:
         """
         Inserts a shape G-code preamble into the document.
@@ -924,6 +930,10 @@ class Shape:
             Document into which to inject generated G-Code.
         """
 
+        # Shape type header
+        s = "(" + str(self).replace("(", ": ")
+        doc.AddLine(s)
+
         if self._header is not None:
             doc.AddLine(f"({self._header})")
 
@@ -932,7 +942,8 @@ class Shape:
             doc.AddLine(f"G0 Z{doc.z_retract_height:0.3f} F{doc.speed_position:0.1f}")
 
         # Go to XY coordinate.
-        doc.AddLine(f"G0 X{self.x:0.3f} Y{self.y:0.3f} F{doc.speed_position:0.1f}")
+        pts = self.points
+        doc.AddLine(f"G0 X{pts[0,0]:0.3f} Y{pts[0,1]:0.3f} F{doc.speed_position:0.1f}")
 
         # Set Z-axis positioning
         # Separate line in case we needed to lift to get to the XY pos.
@@ -943,6 +954,31 @@ class Shape:
             doc.AddLine(f"G1 F{doc.speed_print:0.1f}")
         else:
             doc.AddLine(f"G1 F{self.speed_print:0.1f}")
+
+        # Set shape specific power if specified
+        if self.laser_power is not None:
+            doc.laser_power = self.laser_power
+
+        # Laser on
+        doc.AddLine(doc.laser_on)
+
+        # Process list of points that determine the perimeter.
+        # Note that we're already at the first point, so skip it.
+        for pt in pts[1:]:
+            doc.AddLine(f"G1 X{pt[0]:0.3f} Y{pt[1]:0.3f}")
+
+        # For closed shapes, return to the first point.
+        if self.is_closed:
+            doc.AddLine(f"G1 X{pts[0,0]:0.3f} Y{pts[0,1]:0.3f}")
+
+        # Laser off & return to default power.
+        doc.AddLine(doc.laser_off)
+        doc.laser_power = doc.laser_power_default
+
+        # Footer
+        if self._footer is not None:
+            doc.AddLine(f"({self._footer})")
+        doc.AddLine()
 
         return doc.code
 
@@ -1057,6 +1093,13 @@ class Shape:
     def footer(self, value: str):
         self._footer = value
 
+    @property
+    def is_closed(self) -> bool:
+        """
+        Returns True if shape is closed (first and last point are the same).
+        """
+        return self._is_closed
+
     def Size(self) -> tuple:
         """
         Returns tuple of bounding box size of object.
@@ -1101,6 +1144,8 @@ class Line(Shape):
 
         self.length = length
         self.angle_deg = angle_deg
+
+        print("*** WARNING: Not ported to update point list implementation. ***")
 
     def __repr__(self):
         info = f"x={self.x}, y={self.y}, z={self.x}, length={self.length}, angle={self.angle_deg}"
@@ -1192,15 +1237,13 @@ class Rectangle(Shape):
     x & y are the center of the rectangle.
     """
 
-    _width = None
-    _height = None
-
     def __init__(
         self,
         x: float = 0.0,
         y: float = 0.0,
         width: float = 1.0,
         height: float = 1.0,
+        rotation: float = 0.0,
         speed_print: float = None,
         laser_power=None,
     ):
@@ -1212,47 +1255,16 @@ class Rectangle(Shape):
 
         self.height = height
         self.width = width
+        self.rotation = rotation
 
-    def GCode(self, doc: Doc):
-        """
-        Generate G-Code for rectangle object.
+        self._is_closed = True
 
-        Parameters
-        ----------
-        doc: Doc
-            Document into which to inject generated G-Code.
-        """
+    def __repr__(self):
+        info = f"Rectangle(x={self.x:0.2f},y={self.y:0.2f},width={self.width:0.2f},height={self.height:0.2f})"
+        return info
 
-        print("*** Rectangle GCode not using XY as center")
-        print("*** Rectangle rotation not handled")
-
-        # Shape preamble, handles shape header.
-        super().GCode(doc)
-
-        # Set shape specific power if specified
-        if self.laser_power is not None:
-            doc.laser_power = self.laser_power
-
-        # Laser on
-        doc.AddLine(doc.laser_on)
-
-        # Draw our four lines.
-        doc.AddLine(f"G1 X{self.x:0.3f} Y{self.y + self.height:0.3f} (Left)")
-        doc.AddLine(
-            f"G1 X{self.x + self.width:0.3f} Y{self.y + self.height:0.3f} (Top)"
-        )
-        doc.AddLine(f"G1 X{self.x + self.width:0.3f} Y{self.y:0.3f} (Right)")
-        doc.AddLine(f"G1 X{self.x:0.3f} Y{self.y:0.3f} (Bottom)")
-
-        # Laser off & return to default power.
-        doc.AddLine(doc.laser_off)
-        doc.laser_power = doc.laser_power_default
-
-        # Footer
-        if self._footer is not None:
-            doc.AddLine(f"({self._footer})")
-
-        return doc.code
+    def __str__(self) -> str:
+        return self.__repr__()
 
     @property
     def width(self) -> float:
@@ -1281,6 +1293,42 @@ class Rectangle(Shape):
             raise ValueError("Height must be positive.")
 
         self._height = height
+
+    @property
+    def rotation(self) -> float:
+        return self._rotation
+
+    @rotation.setter
+    def rotation(self, rotation: float = 0.0):
+        """
+        Box rotation in radians.
+        """
+        self._rotation = rotation
+
+    @property
+    def points(self):
+        """List of points defining the perimeter of the rectangle."""
+
+        # Generate point list.
+        w = self.width / 2
+        h = self.height / 2
+        # Lower left, upper left, upper right, lower right
+        pts = np.array([[-w, -h], [-w, h], [w, h], [w, -h]])
+
+        # Rotate
+        R = [
+            [np.cos(self.rotation), -np.sin(self.rotation)],
+            [np.sin(self.rotation), np.cos(self.rotation)],
+        ]
+        R = np.array(R)
+
+        # Rotate each point by the rotation matrix
+        pts = pts @ R.T
+
+        # Offset
+        pts += np.array([self.x, self.y])
+
+        return pts
 
     def Size(self) -> tuple:
         return (self.width, self.height)
@@ -1326,6 +1374,8 @@ class Text(Shape):
 
         # Set default header
         self.header = f'Text: "{self.text}"'
+
+        print("*** WARNING: Not ported to update point list implementation. ***")
 
         # Render the string into points
         self.CollectCharacters()
@@ -3124,6 +3174,8 @@ class DocSpeedPower(Doc):
         # Default square size.
         self.square_size = 10
 
+        print("*** WARNING: Not ported to update point list implementation. ***")
+
     def GCode(self, filename: str = None):
         """
         Generates speed & power tuning G-Code document.
@@ -3241,6 +3293,8 @@ class DocFocus(Doc):
 
         self._heights = np.sort(heights)  # Make sure they're in order
         self._length = length
+
+        print("*** WARNING: Not ported to update point list implementation. ***")
 
     def GCode(self, filename: str = None):
         """
