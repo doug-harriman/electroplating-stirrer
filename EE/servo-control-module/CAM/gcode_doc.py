@@ -30,12 +30,13 @@
 import numpy as np
 import networkx as nx
 import math
-from typing import Union
+from typing import Any, Union
 
 
 class Layout:
     """
-    Abstract Layout base class for GCode documents.
+    Layout base class for GCode documents.
+    Simplest implementation.  Objects stored in a list.
     """
 
     # References
@@ -54,6 +55,9 @@ class Layout:
     # Comments for cell
     _header = None
     _footer = None
+
+    def __init__(self):
+        self._children = []
 
     @property
     def x(self) -> Union[None, float]:
@@ -156,8 +160,8 @@ class Layout:
         Exception
             This is an abstract method and will raise an error if called.
         """
-        # Emulating a pure virtual method that should have a concrete implementation.
-        raise Exception(f"No AddChild method defined for class: {type(self)}")
+
+        self._children += child
 
     def Size(self) -> tuple:
         """
@@ -180,8 +184,9 @@ class Layout:
         Exception
             This is an abstract method and will raise an error if called.
         """
-        # Emulating a pure virtual method that should have a concrete implementation.
-        raise Exception(f"No GCode method defined for class: {type(self)}")
+
+        for child in self._children:
+            child.GCode(doc)
 
 
 class GraphLayout(Layout):
@@ -243,7 +248,7 @@ class CellLayout(Layout):
     def __init__(self):
         super().__init__()
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
     def AddChild(self, child):
         """
@@ -340,7 +345,7 @@ class GridLayout(Layout):
         self._widths = np.zeros((rows, columns))
         self._heights = np.zeros((rows, columns))
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
     @property
     def cell_padding_width(self) -> float:
@@ -549,7 +554,7 @@ class Doc:
         self._laser_power = self._laser_power_default
 
         # Set layout
-        self._layout = CellLayout()
+        self._layout = Layout()
 
         # Job control
         self._job_control = job_control
@@ -878,26 +883,6 @@ class Shape:
     All coordinate value are absolute.
     """
 
-    # Shape origin.
-    # Defined to be lower left corner always.
-    _x = None
-    _y = None
-    _z = None
-
-    # Set speeds
-    _speed_print = None
-
-    # Laser power
-    _laser_power = None
-
-    # Multi pass
-    _passes = 1
-    _stepdown = None
-
-    # Comments
-    _header = None
-    _footer = None
-
     def __init__(
         self,
         x: float = 0.0,
@@ -914,6 +899,14 @@ class Shape:
         self.x = x
         self.y = y
         self.z = z
+
+        # Multi pass
+        self._passes = 1
+        self._stepdown = None
+
+        # Comments
+        self._header = None
+        self._footer = None
 
         self._speed_print = speed_print
         self._laser_power = laser_power
@@ -964,12 +957,28 @@ class Shape:
 
         # Process list of points that determine the perimeter.
         # Note that we're already at the first point, so skip it.
-        for pt in pts[1:]:
-            doc.AddLine(f"G1 X{pt[0]:0.3f} Y{pt[1]:0.3f}")
+        # Custom shape G-Code only returns the start point, so we need to
+        # request the code.
+        if isinstance(self, Circle):
+            pass
 
-        # For closed shapes, return to the first point.
-        if self.is_closed:
-            doc.AddLine(f"G1 X{pts[0,0]:0.3f} Y{pts[0,1]:0.3f}")
+        if len(pts) > 1:
+            # Have a polgon of some sort.
+            for pt in pts[1:]:
+                doc.AddLine(f"G1 X{pt[0]:0.3f} Y{pt[1]:0.3f}")
+
+            # For closed shapes, return to the first point.
+            if self.is_closed:
+                doc.AddLine(f"G1 X{pts[0,0]:0.3f} Y{pts[0,1]:0.3f}")
+
+        else:
+            # Custom gcode command (circle, arc)
+            try:
+                doc.AddLine(self.gcode)
+            except AttributeError:
+                raise AttributeError(
+                    f"Shape {type(self)} does not have a gcode property."
+                )
 
         # Laser off & return to default power.
         doc.AddLine(doc.laser_off)
@@ -981,6 +990,14 @@ class Shape:
         doc.AddLine()
 
         return doc.code
+
+    @property
+    def gcode(self):
+        raise NotImplementedError("Shape.gcode not implemented.")
+
+    @property
+    def points(self):
+        raise NotImplementedError("Shape.points not implemented.")
 
     @property
     def x(self) -> float:
@@ -1013,6 +1030,10 @@ class Shape:
         """
         Sets shape Z coordinate (lower).
         """
+
+        if z is None:
+            raise ValueError("Z must be non-None.")
+
         self._z = z
 
     @property
@@ -1145,7 +1166,7 @@ class Line(Shape):
         self.length = length
         self.angle_deg = angle_deg
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
     def __repr__(self):
         info = f"x={self.x}, y={self.y}, z={self.x}, length={self.length}, angle={self.angle_deg}"
@@ -1241,6 +1262,7 @@ class Rectangle(Shape):
         self,
         x: float = 0.0,
         y: float = 0.0,
+        z: float = 0.0,
         width: float = 1.0,
         height: float = 1.0,
         rotation: float = 0.0,
@@ -1251,7 +1273,9 @@ class Rectangle(Shape):
         Initializes a rectangle object.
         """
 
-        super().__init__(x=x, y=y, speed_print=speed_print, laser_power=laser_power)
+        super().__init__(
+            x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
+        )
 
         self.height = height
         self.width = width
@@ -1306,7 +1330,7 @@ class Rectangle(Shape):
         self._rotation = rotation
 
     @property
-    def points(self):
+    def points(self) -> np.array:
         """List of points defining the perimeter of the rectangle."""
 
         # Generate point list.
@@ -1332,6 +1356,75 @@ class Rectangle(Shape):
 
     def Size(self) -> tuple:
         return (self.width, self.height)
+
+
+class Circle(Shape):
+    """Circle G-Code object"""
+
+    def __init__(
+        self,
+        x: float = 0.0,
+        y: float = 0.0,
+        z: float = 0.0,
+        radius: float = 1.0,
+        speed_print: float = None,
+        laser_power=None,
+    ):
+        super().__init__(
+            x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
+        )
+
+        self.radius = radius
+
+        self._is_closed = True
+
+        # Assume start point is at -radius,0 for a circle with center (0,0)
+        self._start = np.array([[-radius, 0]])
+
+    def __repr__(self):
+        info = f"Circle(x={self.x:0.2f},y={self.y:0.2f},radius={self.radius:0.2f})"
+        return info
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @radius.setter
+    def radius(self, radius: float = 1.0):
+        if radius <= 0.0:
+            raise ValueError("Radius must be positive.")
+
+        self._radius = radius
+
+    @property
+    def gcode(self) -> str:
+        """
+        Returns custom G-Code for Circle.
+        Circle is always drawn with clockwise rotation.
+        """
+
+        # ARC mode.
+        # https://marlinfw.org/docs/gcode/G002-G003.html
+        # G2: Clockwise
+        # G3: Counter clockwise
+
+        # For a cirlce, we just have to return center point.
+        return f"G2 I{-self._start[0,0]:0.3f} J{-self._start[0,1]:0.3f}"
+
+    @property
+    def points(self) -> np.array:
+        """
+        List of points defining the perimeter of the circle.
+        Returns only start point.
+        """
+
+        # Generate point list.
+        pts = self._start + np.array([self.x, self.y])
+
+        return pts
 
 
 class Text(Shape):
@@ -1375,7 +1468,7 @@ class Text(Shape):
         # Set default header
         self.header = f'Text: "{self.text}"'
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
         # Render the string into points
         self.CollectCharacters()
@@ -3174,7 +3267,7 @@ class DocSpeedPower(Doc):
         # Default square size.
         self.square_size = 10
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
     def GCode(self, filename: str = None):
         """
@@ -3294,7 +3387,7 @@ class DocFocus(Doc):
         self._heights = np.sort(heights)  # Make sure they're in order
         self._length = length
 
-        print("*** WARNING: Not ported to update point list implementation. ***")
+        raise NotImplementedError("Not ported to update point list implementation.")
 
     def GCode(self, filename: str = None):
         """
@@ -3371,7 +3464,7 @@ if __name__ == "__main__":
         doc_sp.GCode()
         doc_sp.Save("speed-power-tuning.nc")
 
-    if True:
+    if False:
         # Laser focus test print
         doc_fc = DocFocus()  # Default heights
         doc_fc.laser_power_default = 50

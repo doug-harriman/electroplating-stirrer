@@ -364,19 +364,26 @@ class Gerber2Gcode:
                     )
 
             self._logger.debug(f"{prim}")
+
             if isinstance(prim, gerbonara.graphic_primitives.Rectangle):
                 shape = gcd.Rectangle(
-                    prim.x,
-                    prim.y,
-                    prim.w,
-                    prim.h,
-                    prim.rotation,
+                    x=prim.x,
+                    y=prim.y,
+                    width=prim.w,
+                    height=prim.h,
+                    rotation=prim.rotation,
                 )
 
             elif isinstance(prim, gerbonara.graphic_primitives.Line):
                 self._logger.error("Line primitive not supported")
+
             elif isinstance(prim, gerbonara.graphic_primitives.Circle):
-                self._logger.error("Circle primitive not supported")
+                shape = gcd.Circle(
+                    x=prim.x,
+                    y=prim.y,
+                    radius=prim.r,
+                )
+
             elif isinstance(prim, gerbonara.graphic_primitives.Arc):
                 self._logger.error("Arc primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.ArcPoly):
