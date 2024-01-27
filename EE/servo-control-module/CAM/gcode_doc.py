@@ -237,6 +237,57 @@ class Layout2dOptimizer(Layout):
                 xy = child.points[-1, :]
 
 
+class LayoutTravelingSalesment(Layout):
+    """
+    Layout which optimizes G-Code generation for minimum
+    travel distance solving the Traveling Salesman Problem
+    between the centers of the child geometry objects.
+    """
+
+    def GCode(self, doc):
+        """
+        Generate optimized G-Code for child object.
+        """
+        import networkx.algorithms.approximation as nx_app
+
+        # Copy list elements into the NetworkX graph
+        G = nx.Graph()
+        for i, child in enumerate(self._children):
+            G.add_node(i, pos=(child.x, child.y))
+
+        pos = nx.get_node_attributes(G, "pos")
+
+        # Calculating the distances between the nodes as edge's weight.
+        for i in range(len(pos)):
+            for j in range(i + 1, len(pos)):
+                dist = math.hypot(pos[i][0] - pos[j][0], pos[i][1] - pos[j][1])
+                dist = dist**4
+                G.add_edge(i, j, weight=dist)
+
+        # Assume that the tool starts at the origin.
+        xy = np.array([0, 0])
+
+        def child_distance(child):
+            """
+            Returns distance from child to current position.
+            """
+            return child.distance(xy)
+
+        # Find closest child
+        dist = list(map(child_distance, self._children))
+        dist = np.array(dist)
+        idx = np.argmin(dist)
+
+        # Per: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.approximation.traveling_salesman.traveling_salesman_problem.html
+        tsp = nx_app.greedy_tsp
+        node_list = tsp(G, weight="weight", source=idx)
+        node_list = list(node_list)[:-1]
+
+        for idx in node_list:
+            child = self._children[idx]
+            child.GCode(doc)
+
+
 class CellLayout(Layout):
     """
     Cell layout object.

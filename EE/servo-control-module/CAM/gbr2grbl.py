@@ -349,8 +349,9 @@ class Gerber2Gcode:
 
         # G-code document
         doc = gcd.Doc()
-        doc.layout = gcd.Layout2dOptimizer()
         # doc.layout = gcd.Layout()
+        # doc.layout = gcd.Layout2dOptimizer()
+        doc.layout = gcd.LayoutTravelingSalesment()
 
         # Process Gerber geometry objects.
         for obj in self._gerber.objects:
@@ -396,7 +397,7 @@ class Gerber2Gcode:
 
             # Add the shape to the document.
             if shape:
-                shape.is_filled = prim.polarity_dark
+                # shape.is_filled = prim.polarity_dark
                 doc.AddChild(shape)
 
         # Write the G-Code file.
