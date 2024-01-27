@@ -1498,8 +1498,9 @@ class Circle(Shape):
             raise ValueError("Expected a Doc object.")
 
         # Number of lines to draw for fill
-        n_lines = np.round((2 * self.radius - doc.fill_stepover) / doc.fill_stepover)
-        n_lines = int(n_lines) - 1  # Skip center line.
+        # Lines are mirrors of each other, so we only need to draw half.
+        n_lines = np.round((self.radius - doc.fill_stepover) / doc.fill_stepover)
+        n_lines = int(n_lines)
 
         # Add in center/diameter line.
         line = Line(
@@ -1511,19 +1512,41 @@ class Circle(Shape):
         line.header = "Circle Fill"
         doc.AddChild(line)
 
-        # for i in range(n_lines):
-        #     # Line start point
-        #     line = Line(
-        #         x=p_start[0],
-        #         y=p_start[1],
-        #         z=self.z,
-        #         length=length,
-        #         rotation=self.rotation * 180 / np.pi,
-        #     )
-        #     line.header = "Circle Fill"
-        #     doc.AddChild(line)
+        dy = doc.fill_stepover
+        theta = 0  # Initial angle
+        for i in range(n_lines):
+            # Assume we have a line from the center to the perimeter.
+            # Calculuate the XY point on the perimeter.
 
-        #     y_start += y_start
+            # Updated rotation angle
+            theta = np.arcsin(dy / self.radius + np.sin(theta))
+
+            # Calculate point on perimeter
+            x_perimeter = self.radius * np.cos(theta)
+            y_perimeter = self.radius * np.sin(theta)
+
+            x_start = -x_perimeter + doc.fill_stepover
+            length = 2 * (x_perimeter - doc.fill_stepover)
+
+            # Line start point
+            line = Line(
+                x=x_start + self.x,
+                y=self.y + y_perimeter,
+                z=self.z,
+                length=length,
+            )
+            line.header = "Circle Fill"
+            doc.AddChild(line)
+
+            # Mirrored Line start point
+            line = Line(
+                x=x_start + self.x,
+                y=self.y - y_perimeter,
+                z=self.z,
+                length=length,
+            )
+            line.header = "Circle Fill"
+            doc.AddChild(line)
 
 
 class Text(Shape):
