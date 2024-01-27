@@ -161,7 +161,11 @@ class Layout:
             This is an abstract method and will raise an error if called.
         """
 
-        self._children += child
+        self._children.append(child)
+
+        # Add fill lines if needed.
+        if child.is_filled:
+            child.fill(self.parent)
 
     def Size(self) -> tuple:
         """
@@ -554,7 +558,10 @@ class Doc:
         self._laser_power = self._laser_power_default
 
         # Set layout
-        self._layout = Layout()
+        self.layout = Layout()
+
+        # Filled objects
+        self._fill_stepover = 0.1
 
         # Job control
         self._job_control = job_control
@@ -779,6 +786,19 @@ class Doc:
         self._footer = value
 
     @property
+    def fill_stepover(self) -> float:
+        """
+        Fill stepover distance.
+        """
+        return self._fill_stepover
+
+    @fill_stepover.setter
+    def fill_stepover(self, value: float):
+        if value <= 0:
+            raise ValueError("Fill stepover must be positive.")
+        self._fill_stepover = value
+
+    @property
     def layout(self) -> Union[Layout, None]:
         """
         Document layout object.
@@ -790,6 +810,7 @@ class Doc:
         if not isinstance(value, Layout):
             raise ValueError("Layout must be a Layout object.")
         self._layout = value
+        self._layout.parent = self
 
     def AddChild(self, child):
         """
@@ -912,6 +933,7 @@ class Shape:
         self._laser_power = laser_power
 
         self._is_closed = False
+        self._is_filled = False
 
     def GCode(self, doc: Doc) -> str:
         """
@@ -993,11 +1015,11 @@ class Shape:
 
     @property
     def gcode(self):
-        raise NotImplementedError("Shape.gcode not implemented.")
+        raise NotImplementedError(f"{type(self)}.gcode not implemented.")
 
     @property
     def points(self):
-        raise NotImplementedError("Shape.points not implemented.")
+        raise NotImplementedError(f"{type(self)}.points not implemented.")
 
     @property
     def x(self) -> float:
@@ -1121,6 +1143,27 @@ class Shape:
         """
         return self._is_closed
 
+    @property
+    def is_filled(self) -> bool:
+        """
+        Returns True if rectangle is filled.
+        """
+        return self._is_filled
+
+    @is_filled.setter
+    def is_filled(self, value: bool):
+        if not isinstance(value, bool):
+            raise ValueError("is_filled must be a boolean.")
+
+        if self.is_filled and not value:
+            raise ValueError("Cannot clear is_filled once set.")
+
+        self._is_filled = value
+
+    @property
+    def fill(self, layout: Layout):
+        raise NotImplementedError(f"{type(self)}.fill not implemented.")
+
     def Size(self) -> tuple:
         """
         Returns tuple of bounding box size of object.
@@ -1135,16 +1178,13 @@ class Line(Shape):
     Simple line.
     """
 
-    _length = None
-    _angle_deg = None
-
     def __init__(
         self,
         x: float = 0.0,
         y: float = 0.0,
         z: float = 0.0,
         length: float = 1,
-        angle_deg: float = 0,
+        rotation: float = 0,
         speed_print: float = None,
         laser_power=None,
     ):
@@ -1156,7 +1196,7 @@ class Line(Shape):
         length: float
             Length of the line.
 
-        angle_deg: float
+        rotation: float
             Rotation of angle above X-axis.
             Angle units are degrees.
         """
@@ -1164,13 +1204,14 @@ class Line(Shape):
         super().__init__(x=x, y=y, speed_print=speed_print, laser_power=laser_power)
 
         self.length = length
-        self.angle_deg = angle_deg
-
-        raise NotImplementedError("Not ported to update point list implementation.")
+        self.rotation = rotation
 
     def __repr__(self):
-        info = f"x={self.x}, y={self.y}, z={self.x}, length={self.length}, angle={self.angle_deg}"
+        info = f"Line(x={self.x:0.3f},y={self.y:0.3f},l={self.length:0.3f},rotation={self.rotation:0.3f})"
         return info
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     @property
     def length(self) -> float:
@@ -1187,15 +1228,15 @@ class Line(Shape):
         self._length = value
 
     @property
-    def angle(self) -> float:
+    def rotation(self) -> float:
         """
         Angle of line above X-axis in degrees.
         """
-        return self._angle_deg
+        return self._rotation
 
-    @angle.setter
-    def angle(self, value: float):
-        self._angle_deg = value
+    @rotation.setter
+    def rotation(self, value: float):
+        self._rotation = value
 
     def Size(self) -> tuple:
         """
@@ -1211,45 +1252,20 @@ class Line(Shape):
             Object size: (width, height)
         """
 
-        theta = math.radians(self.angle_deg)
+        theta = math.radians(self.rotation)
         sz = (self.length * math.cos(theta), self.length * math.sin(theta))
         return sz
 
-    def GCode(self, doc: Doc) -> str:
+    @property
+    def points(self) -> np.array:
         """
-        Generates G-Code for Line shape.
-
-        Parameters
-        ----------
-        doc: Doc
-        Document into which to inject generated G-Code.
+        Returns a list of points defining the perimeter of the line.
         """
-
-        # Shape preamble, handles shape header.
-        super().GCode(doc)
-
-        # Set shape specific power if specified
-        if self.laser_power is not None:
-            doc.laser_power = self.laser_power
-
-        # Laser on
-        doc.AddLine(doc.laser_on)
-
-        # Draw our line.
-        theta = math.radians(self.angle_deg)
+        theta = math.radians(self.rotation)
         x = self.length * math.cos(theta)
         y = self.length * math.sin(theta)
-        doc.AddLine(f"G1 X{self.x+x:0.3f} Y{self.y + y:0.3f}")
-
-        # Laser off & return to default power.
-        doc.AddLine(doc.laser_off)
-        doc.laser_power = doc.laser_power_default
-
-        # Footer
-        if self._footer is not None:
-            doc.AddLine(f"({self._footer})")
-
-        return doc.code
+        pts = np.array([[self.x, self.y], [self.x + x, self.y + y]])
+        return pts
 
 
 class Rectangle(Shape):
@@ -1268,6 +1284,7 @@ class Rectangle(Shape):
         rotation: float = 0.0,
         speed_print: float = None,
         laser_power=None,
+        is_filled=False,
     ):
         """
         Initializes a rectangle object.
@@ -1282,6 +1299,7 @@ class Rectangle(Shape):
         self.rotation = rotation
 
         self._is_closed = True
+        self.is_filled = is_filled
 
     def __repr__(self):
         info = f"Rectangle(x={self.x:0.2f},y={self.y:0.2f},width={self.width:0.2f},height={self.height:0.2f})"
@@ -1357,6 +1375,49 @@ class Rectangle(Shape):
     def Size(self) -> tuple:
         return (self.width, self.height)
 
+    def fill(self, doc: Doc) -> None:
+        """
+        Generates Line objects to fill in square.
+        """
+
+        if not isinstance(doc, Doc):
+            raise ValueError("Expected a Doc object.")
+
+        # Number of lines to draw for fill
+        n_lines = np.round((self.height - doc.fill_stepover) / doc.fill_stepover)
+        n_lines = int(n_lines)
+
+        # Line length shortened by stepover distance.
+        length = self.width - 2 * doc.fill_stepover
+
+        # Handle rotation of rectangle
+        R = [
+            [np.cos(self.rotation), -np.sin(self.rotation)],
+            [np.sin(self.rotation), np.cos(self.rotation)],
+        ]
+        R = np.array(R).T
+
+        # First line start point is offset from lower left rectangle point.
+        p_start = self.points[0, :] + doc.fill_stepover * np.array([1, 1]) @ R
+
+        # Start point position deltas based on stepover & angle.
+        d_start = np.array([0, doc.fill_stepover])
+        d_start = d_start @ R
+
+        for i in range(n_lines):
+            # Line start point
+            line = Line(
+                x=p_start[0],
+                y=p_start[1],
+                z=self.z,
+                length=length,
+                rotation=self.rotation * 180 / np.pi,
+            )
+            line.header = "Rectangle Fill"
+            doc.AddChild(line)
+
+            p_start += d_start
+
 
 class Circle(Shape):
     """Circle G-Code object"""
@@ -1369,6 +1430,7 @@ class Circle(Shape):
         radius: float = 1.0,
         speed_print: float = None,
         laser_power=None,
+        is_filled=False,
     ):
         super().__init__(
             x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
@@ -1377,6 +1439,7 @@ class Circle(Shape):
         self.radius = radius
 
         self._is_closed = True
+        self.is_filled = is_filled
 
         # Assume start point is at -radius,0 for a circle with center (0,0)
         self._start = np.array([[-radius, 0]])
@@ -1425,6 +1488,17 @@ class Circle(Shape):
         pts = self._start + np.array([self.x, self.y])
 
         return pts
+
+    def fill(self, doc: Doc) -> np.array:
+        """
+        Generates Line objects to fill in circle.
+        """
+
+        if not isinstance(doc, Doc):
+            raise ValueError("Expected a Doc object.")
+
+        pass
+        # raise NotImplementedError("Fill object creation not yet implemented.")
 
 
 class Text(Shape):
@@ -3488,7 +3562,7 @@ if __name__ == "__main__":
         doc_guide.laser_power_default = 40
         doc_guide.layout.padding_height = ph
         doc_guide.layout.padding_width = pw
-        line = Line(length=150, laser_power=40, angle_deg=angle)
+        line = Line(length=150, laser_power=40, rotation=angle)
         doc_guide.layout.AddChild(line)
         doc_guide.header = f"{name} Guide Line for Spoilboard"
         doc_guide.GCode()
