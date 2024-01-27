@@ -225,9 +225,13 @@ class Layout2dOptimizer(Layout):
             dist = np.array(dist)
             idx = np.argmin(dist)
 
+            # Optimize & generate the child.
             child = children.pop(idx)
+            child.startpoint_set(xy)
             child.GCode(doc)
-            xy = np.array([child.x, child.y])
+
+            # Find the endpoint of the child.
+            xy = child.points[-1, :]
 
 
 class CellLayout(Layout):
@@ -1151,12 +1155,31 @@ class Shape:
     def fill(self, layout: Layout):
         raise NotImplementedError(f"{type(self)}.fill not implemented.")
 
+    def closest(self, xy: np.array = np.array([0, 0])) -> np.array:
+        """
+        Returns shape geometry point closest to the given point.
+        Used for G-code scheduling optimization.
+        """
+        raise NotImplementedError(f"{type(self)}.closest not implemented.")
+
     def distance(self, xy: np.array = np.array([0, 0])) -> float:
         """
         Returns distance from shape geometry to the given point.
         Used for G-code scheduling optimization.
         """
-        raise NotImplementedError(f"{type(self)}.closest not implemented.")
+        raise NotImplementedError(f"{type(self)}.distance not implemented.")
+
+    def startpoint_set(self, xy: np.array):
+        """
+        Modifies the internal geometry description so that G-Code start as closest
+        to the specified point as possible.
+
+        Args:
+            xy (np.array): First point for G-Code generation.
+        """
+
+        # If not implemented, just skip and miss out on the potential optimization.
+        pass
 
     def Size(self) -> tuple:
         """
@@ -1261,17 +1284,52 @@ class Line(Shape):
         pts = np.array([[self.x, self.y], [self.x + x, self.y + y]])
         return pts
 
-    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+    def _closest_index(self, xy: np.array = np.array([0, 0])) -> tuple:
         """
-        Returns distance from rectangle geometry to the given point.
-        Used for G-code scheduling optimization.
+        Returns index of point closest to the given point.
         """
 
         pts = self.points
         delta = pts - xy
         dist = np.linalg.norm(delta, axis=1)
         idx = np.argmin(dist)
-        return dist[idx]
+        return idx, dist[idx]
+
+    def closest(self, xy: np.array = np.array([0, 0])) -> np.array:
+        """
+        Returns Line geometry point closest to the given point.
+        Used for G-code scheduling optimization.
+        """
+        idx = self._closest_index(xy)[0]
+        return self.points[idx, :]
+
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from rectangle geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        return self._closest_index(xy)[1]
+
+    def startpoint_set(self, xy: np.array):
+        """
+        Modifies the internal geometry description so that G-Code start as closest
+        to the specified point as possible.
+
+        Args:
+            xy (np.array): First point for G-Code generation.
+        """
+
+        idx = self._closest_index(xy)[0]
+        if idx == 0:
+            # Already closest
+            return
+
+        # Swap line direction.
+        pts = self.points
+        self.x = pts[1, 0]
+        self.y = pts[1, 1]
+        self.rotation += 180
 
 
 class Rectangle(Shape):
@@ -1503,7 +1561,7 @@ class Circle(Shape):
         """
 
         # Generate point list.
-        pts = self._start + np.array([self.x, self.y])
+        pts = self._start + np.array([[self.x, self.y]])
 
         return pts
 
