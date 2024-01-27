@@ -349,7 +349,7 @@ class Gerber2Gcode:
 
         # G-code document
         doc = gcd.Doc()
-        doc.layout = gcd.Layout()
+        doc.layout = gcd.Layout2dOptimizer()
 
         # Process Gerber geometry objects.
         for obj in self._gerber.objects:

@@ -193,54 +193,41 @@ class Layout:
             child.GCode(doc)
 
 
-class GraphLayout(Layout):
+class Layout2dOptimizer(Layout):
     """
-    Graph layout object.
-    Child pbjects are added to a Graph.
-    G-Code generation uses Shape bounding box center as its position.
-    Shapes are ordered based on solving the traveling salesman problem.
+    Layout which optimizes G-Code generation for minimum
+    travel distance by schedling G-Code objects based on proximity to
+    the last operation point.
     """
-
-    def __init__(self):
-        super().__init__()
-
-        self._graph = nx.Graph()
-        self._graph.add_node(0, x=0, y=0, data=None)
-
-    def AddChild(self, child):
-        """
-        Adds child to layout.
-        """
-
-        if not isinstance(child, Shape):
-            raise ValueError("Child must be a Shape object.")
-
-        # Add node to graph
-        node = self._graph.number_of_nodes()
-        self._graph.add_node(node, x=child.x, y=child.y, data=child)
-
-    def Size(self) -> tuple:
-        """
-        Return size of graph layout object.
-        """
-
-        raise NotImplementedError("GraphLayout.Size() not implemented.")
 
     def GCode(self, doc):
         """
-        Generates G-Code for graph layout object.
+        Generate optimized G-Code for child object.
         """
 
-        # TODO: Add edges between all nodes
-        # TODO: Solve Traveling Salesman problem to order nodes.
-        # TODO: Write out nodes in order, with G0 moves between nodes.
+        # Deep copy the list of children
+        children = self._children.copy()
 
-        for node in self._graph.nodes():
-            shape = self._graph.nodes[node]["data"]
-            if shape is None:
-                continue
+        # Assume that the tool starts at the origin.
+        xy = np.array([0, 0])
 
-            shape.GCode(doc)
+        def child_distance(child):
+            """
+            Returns distance from child to current position.
+            """
+            return child.distance(xy)
+
+        # Process list of children, looking for closest to current position.
+        # As each child is processed, pop it from the list.
+        while len(children) > 0:
+            # Find closest child
+            dist = list(map(child_distance, children))
+            dist = np.array(dist)
+            idx = np.argmin(dist)
+
+            child = children.pop(idx)
+            child.GCode(doc)
+            xy = np.array([child.x, child.y])
 
 
 class CellLayout(Layout):
@@ -1164,6 +1151,13 @@ class Shape:
     def fill(self, layout: Layout):
         raise NotImplementedError(f"{type(self)}.fill not implemented.")
 
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from shape geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+        raise NotImplementedError(f"{type(self)}.closest not implemented.")
+
     def Size(self) -> tuple:
         """
         Returns tuple of bounding box size of object.
@@ -1266,6 +1260,18 @@ class Line(Shape):
         y = self.length * math.sin(theta)
         pts = np.array([[self.x, self.y], [self.x + x, self.y + y]])
         return pts
+
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from rectangle geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        pts = self.points
+        delta = pts - xy
+        dist = np.linalg.norm(delta, axis=1)
+        idx = np.argmin(dist)
+        return dist[idx]
 
 
 class Rectangle(Shape):
@@ -1418,6 +1424,18 @@ class Rectangle(Shape):
 
             p_start += d_start
 
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from rectangle geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        pts = self.points
+        delta = pts - xy
+        dist = np.linalg.norm(delta, axis=1)
+        idx = np.argmin(dist)
+        return dist[idx]
+
 
 class Circle(Shape):
     """Circle G-Code object"""
@@ -1547,6 +1565,16 @@ class Circle(Shape):
             )
             line.header = "Circle Fill"
             doc.AddChild(line)
+
+    def distance(self, xy: np.array = np.array([0, 0])) -> np.array:
+        """
+        Returns distance from circle geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        delta = np.array([self.x, self.y]) - xy
+        dist = np.linalg.norm(delta)
+        return dist
 
 
 class Text(Shape):

@@ -57,19 +57,24 @@ Intended process is to apply two layers of soldermask/ink to the PCB, then use m
 
 While FlatCAM is a very impressive piece of Python GUI software, it's cumbersome to have to do a lot of manual stuff.  Per above, `PCB2GCODE` does a great job with the isolation routing, edge routing and drilling G-code file generation.  Once you've properly parameterized your system, it's a two second opeation to go from Gerber to G-Code.  Looking to add in the next steps in that tooling for laser ablation paths.
 
-We need to go from Gerber to G-Code.  It looks like there are high quality, maintained Python modules to get us there via:
-1. Convert Gerber to SVG with [Gerbonara](https://gerbolyze.gitlab.io/gerbonara/#).
+We need to go from Gerber to G-Code. [Gerbonara](https://gerbolyze.gitlab.io/gerbonara/#) can read Gerber files and provide graphics primitives which can be converted to G-Code by a custom Python module `gbr2grbl.py`.  This is able to draw and fill rectangles and circles, which meets the most basic of soldermask needs.
 
-TODO: Gerbonara graphic primitives look reasonable to convert to G-code.
-      Can use my gcode utilities in `gcode_doc.py` with some extensions to do so.
+With a "dumb" implementaiton, just generating G-code geometry,
+* With 0.1mm infill step size, CAMotics estimates:
+    * Job time: 1m 21s
+    * Total distance: 1378.1 mm.
+* No infill
+    * Job time: 15s
+    * Total distance: 239.2 mm.
 
-This one kind of works: https://github.com/pjpscriv/py-svg2gcode
+With 2D position scheduling optimization
+* With 0.1mm infill step size, CAMotics estimates:
+    * Job time: 1m 21s (no savings)
+    * Total distance: 1280.2mm (7.1% savings)
+* With no infille, CAMotics estimates:
+    * Job time: 14.9s (0.7% savings)
+    * Total distance: 222.1mm (7.1% savings)
 
-Failed:
-2. Convert SVG to G-Code with [SvgToGcode](https://github.com/johannesnoordanus/SvgToGcode).  Note that this is a fork of another version of the same file.  It seems unlikely the recommended `pip install` command will install the maintained fork, so I intend to pull a copy via `git` and install via `pip -e <path to source>`.
-
-
-Status: Initial working G-code from Gerber in `gbr2grbl.py`
 
 To do:
 
