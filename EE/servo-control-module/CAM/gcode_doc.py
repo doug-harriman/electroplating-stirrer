@@ -1489,16 +1489,41 @@ class Circle(Shape):
 
         return pts
 
-    def fill(self, doc: Doc) -> np.array:
+    def fill(self, doc: Doc) -> None:
         """
-        Generates Line objects to fill in circle.
+        Generates Line objects to fill in Circle.
         """
 
         if not isinstance(doc, Doc):
             raise ValueError("Expected a Doc object.")
 
-        pass
-        # raise NotImplementedError("Fill object creation not yet implemented.")
+        # Number of lines to draw for fill
+        n_lines = np.round((2 * self.radius - doc.fill_stepover) / doc.fill_stepover)
+        n_lines = int(n_lines) - 1  # Skip center line.
+
+        # Add in center/diameter line.
+        line = Line(
+            x=self.x - self.radius + doc.fill_stepover,
+            y=self.y,
+            z=self.z,
+            length=2 * (self.radius - doc.fill_stepover),
+        )
+        line.header = "Circle Fill"
+        doc.AddChild(line)
+
+        # for i in range(n_lines):
+        #     # Line start point
+        #     line = Line(
+        #         x=p_start[0],
+        #         y=p_start[1],
+        #         z=self.z,
+        #         length=length,
+        #         rotation=self.rotation * 180 / np.pi,
+        #     )
+        #     line.header = "Circle Fill"
+        #     doc.AddChild(line)
+
+        #     y_start += y_start
 
 
 class Text(Shape):
