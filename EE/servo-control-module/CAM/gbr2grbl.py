@@ -350,6 +350,7 @@ class Gerber2Gcode:
         # G-code document
         doc = gcd.Doc()
         doc.layout = gcd.Layout2dOptimizer()
+        # doc.layout = gcd.Layout()
 
         # Process Gerber geometry objects.
         for obj in self._gerber.objects:
@@ -399,7 +400,9 @@ class Gerber2Gcode:
                 doc.AddChild(shape)
 
         # Write the G-Code file.
+        self._logger.debug(f"Generating G-Code file: {filename}")
         doc.GCode(filename)
+        self._logger.debug(f"G-Code geneation complete")
 
         return filename
 

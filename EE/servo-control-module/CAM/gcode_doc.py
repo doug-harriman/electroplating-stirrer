@@ -231,7 +231,10 @@ class Layout2dOptimizer(Layout):
             child.GCode(doc)
 
             # Find the endpoint of the child.
-            xy = child.points[-1, :]
+            if child.is_closed:
+                xy = child.points[0, :]
+            else:
+                xy = child.points[-1, :]
 
 
 class CellLayout(Layout):
@@ -1354,6 +1357,7 @@ class Rectangle(Shape):
         Initializes a rectangle object.
         """
 
+        self._points = None
         super().__init__(
             x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
         )
@@ -1373,6 +1377,34 @@ class Rectangle(Shape):
         return self.__repr__()
 
     @property
+    def x(self) -> float:
+        return self._x
+
+    @x.setter
+    def x(self, x: float = 0.0):
+        """
+        Sets Rectangle center X coordinate.
+        """
+        self._x = x
+
+        if self._points is not None:
+            self._points_gen()
+
+    @property
+    def y(self) -> float:
+        return self._y
+
+    @y.setter
+    def y(self, y: float = 0.0):
+        """
+        Sets Rectangle center Y coordinate.
+        """
+        self._y = y
+
+        if self._points is not None:
+            self._points_gen()
+
+    @property
     def width(self) -> float:
         return self._width
 
@@ -1385,6 +1417,9 @@ class Rectangle(Shape):
             raise ValueError("Width must be positive.")
 
         self._width = width
+
+        if self._points is not None:
+            self._points_gen()
 
     @property
     def height(self):
@@ -1400,6 +1435,9 @@ class Rectangle(Shape):
 
         self._height = height
 
+        if self._points is not None:
+            self._points_gen()
+
     @property
     def rotation(self) -> float:
         return self._rotation
@@ -1411,9 +1449,10 @@ class Rectangle(Shape):
         """
         self._rotation = rotation
 
-    @property
-    def points(self) -> np.array:
-        """List of points defining the perimeter of the rectangle."""
+    def _points_gen(self):
+        """
+        Generates point list for rectangle.
+        """
 
         # Generate point list.
         w = self.width / 2
@@ -1433,8 +1472,16 @@ class Rectangle(Shape):
 
         # Offset
         pts += np.array([self.x, self.y])
+        self._points = pts
 
-        return pts
+    @property
+    def points(self) -> np.array:
+        """List of points defining the perimeter of the rectangle."""
+
+        if self._points is None:
+            self._points_gen()
+
+        return self._points
 
     def Size(self) -> tuple:
         return (self.width, self.height)
@@ -1493,6 +1540,21 @@ class Rectangle(Shape):
         dist = np.linalg.norm(delta, axis=1)
         idx = np.argmin(dist)
         return dist[idx]
+
+    def startpoint_set(self, xy: np.array) -> None:
+        """
+        Modifies the internal geometry description so that G-Code start as closest
+        to the specified point as possible.
+
+        Args:
+            xy (np.array): First point for G-Code generation.
+        """
+
+        # Rotate our point list so that the closest point is first.
+        delta = self.points - xy
+        dist = np.linalg.norm(delta, axis=1)
+        idx = np.argmin(dist)
+        self._points = np.roll(self.points, -idx, axis=0)
 
 
 class Circle(Shape):
@@ -1631,8 +1693,28 @@ class Circle(Shape):
         """
 
         delta = np.array([self.x, self.y]) - xy
-        dist = np.linalg.norm(delta)
+        dist = np.linalg.norm(delta) - self.radius
         return dist
+
+    def startpoint_set(self, xy: np.array) -> None:
+        """
+        Modifies the internal geometry description so that G-Code start as closest
+        to the specified point as possible.
+
+        Args:
+            xy (np.array): First point for G-Code generation.
+        """
+
+        # Find point on perimeter that intersects the line
+        # from the given point to the cirle center.
+
+        # Find angle of line from center to given point.
+        delta = xy - np.array([self.x, self.y])
+        theta = np.arctan2(delta[1], delta[0])
+
+        # Find point on perimeter at angle theta
+        self._start[0, 0] = self.radius * np.cos(theta)
+        self._start[0, 1] = self.radius * np.sin(theta)
 
 
 class Text(Shape):

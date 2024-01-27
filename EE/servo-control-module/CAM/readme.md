@@ -70,7 +70,7 @@ With a "dumb" implementaiton, just generating G-code geometry,
 With 2D position scheduling optimization
 * With 0.1mm infill step size, CAMotics estimates:
     * Job time: 1m 18s (3.7% savings)
-    * Total distance: 807.0mm (41.4% savings)
+    * Total distance: 778.0mm (43.5% savings)
 * With no infille, CAMotics estimates:
     * Job time: 14.9s (0.7% savings)
     * Total distance: 222.1mm (7.1% savings)
