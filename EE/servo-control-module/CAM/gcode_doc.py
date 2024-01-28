@@ -1606,7 +1606,7 @@ class Rectangle(Shape):
 
     def distance(self, xy: np.array = np.array([0, 0])) -> float:
         """
-        Returns distance from rectangle geometry to the given point.
+        Returns distance from Rectangle geometry to the given point.
         Used for G-code scheduling optimization.
         """
 
@@ -1639,6 +1639,7 @@ class Polygon(Shape):
         self,
         points: np.array = None,
         speed_print: float = None,
+        z: float = 0,
         laser_power=None,
         is_filled=False,
     ):
@@ -1646,14 +1647,15 @@ class Polygon(Shape):
         Initializes a Polygon object.
         """
 
-        self._points = None
+        self._points = points
+
+        # Center point via midpoint of ranges
+        x = (np.min(points[:, 0]) + np.max(points[:, 0])) / 2
+        y = (np.min(points[:, 1]) + np.max(points[:, 1])) / 2
+
         super().__init__(
             x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
         )
-
-        self.height = height
-        self.width = width
-        self.rotation = rotation
 
         self._is_closed = True
         self.is_filled = is_filled
@@ -1668,10 +1670,19 @@ class Polygon(Shape):
     def points(self) -> np.array:
         """List of points defining the perimeter of the rectangle."""
 
-        if self._points is None:
-            self._points_gen()
-
         return self._points
+
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from Polygon geometry to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        pts = self.points
+        delta = pts - xy
+        dist = np.linalg.norm(delta, axis=1)
+        idx = np.argmin(dist)
+        return dist[idx]
 
 
 class Circle(Shape):

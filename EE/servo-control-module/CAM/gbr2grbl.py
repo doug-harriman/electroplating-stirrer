@@ -369,8 +369,10 @@ class Gerber2Gcode:
                     prim = gerbonara.graphic_primitives.Circle(
                         prim.x1, prim.y1, prim.width / 2
                     )
+                else:
+                    prim = prim.to_arc_poly()
 
-            self._logger.debug(f"{prim}")
+            # self._logger.debug(f"{prim}")
 
             if isinstance(prim, gerbonara.graphic_primitives.Rectangle):
                 shape = gcd.Rectangle(
@@ -409,7 +411,7 @@ class Gerber2Gcode:
             elif isinstance(prim, gerbonara.graphic_primitives.Arc):
                 self._logger.error("Arc primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.ArcPoly):
-                self._logger.error("ArcPoly primitive not supported")
+                shape = gcd.Polygon(points=np.array(prim.outline))
             else:
                 msg = f"Unsupported primitive: {type(prim)}"
                 self._logger.warning(msg)
