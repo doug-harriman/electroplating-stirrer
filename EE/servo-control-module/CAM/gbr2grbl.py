@@ -8,14 +8,14 @@ import os
 from typing import Union
 
 import gerbonara
-import networkx as nx
+import numpy as np
 
 import gcode_doc as gcd
 
 # Configue logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s:%(name)s:%(levelname)s - %(message)s",
+    format="%(asctime)s:%(name)s.%(funcName)s:%(lineno)s:%(levelname)s - %(message)s",
     handlers=[logging.FileHandler("gbr2grbl.log"), logging.StreamHandler()],
 )
 
@@ -196,17 +196,18 @@ class GerberJob:
         """
 
         # Process files by type.
-        # silks = self.silkscreen()
-        # for silk in silks:
-        #     self._logger.debug(f"Silkscreen: {silk['Path']}")
-        #     g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
-        #     g2g.to_gcode()
-
-        masks = self.mask()
-        for mask in masks:
-            self._logger.debug(f"Mask: {mask['Path']}")
-            g2g = Gerber2Gcode(mask["Path"], mask["Polarity"])
+        silks = self.silkscreen()
+        for silk in silks:
+            self._logger.debug(f"Silkscreen: {silk['Path']}")
+            g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
             g2g.to_gcode()
+
+        self._logger.warning("Soldermask G-Code generation disabled")
+        # masks = self.mask()
+        # for mask in masks:
+        #     self._logger.debug(f"Mask: {mask['Path']}")
+        #     g2g = Gerber2Gcode(mask["Path"], mask["Polarity"])
+        #     g2g.to_gcode()
 
 
 class Gerber2Gcode:
@@ -343,6 +344,10 @@ class Gerber2Gcode:
             self._logger.error(msg)
             raise ValueError(msg)
 
+        with open("gerber.json", "w") as fp:
+            for prim in self._gerber.objects:
+                fp.write(str(prim) + "\n")
+
         # Rectangle: x,y is center coord.
         # TODO: Need to support translation & rotation of my G-code objects
         # TODO: Need to support generating infill passes for my g-code objects.
@@ -350,8 +355,8 @@ class Gerber2Gcode:
         # G-code document
         doc = gcd.Doc()
         # doc.layout = gcd.Layout()
-        # doc.layout = gcd.Layout2dOptimizer()
-        doc.layout = gcd.LayoutTravelingSalesment()
+        doc.layout = gcd.Layout2dOptimizer()
+        # doc.layout = gcd.LayoutTravelingSalesment()
 
         # Process Gerber geometry objects.
         for obj in self._gerber.objects:
@@ -377,7 +382,22 @@ class Gerber2Gcode:
                 )
 
             elif isinstance(prim, gerbonara.graphic_primitives.Line):
-                self._logger.error("Line primitive not supported")
+                p1 = np.array([prim.x1, prim.y1])
+                p2 = np.array([prim.x2, prim.y2])
+                v = p2 - p1
+                length = np.linalg.norm(v)
+
+                u = (p2 - p1) / length
+                v = np.array([1, 0])  # vector to compare with, say [1,0] for x-axis
+                c = np.dot(u, v)  # -> cosine of the angle
+                angle = np.arccos(np.clip(c, -1, 1))  # if you really want the angle
+
+                shape = gcd.Line(
+                    x=prim.x1,
+                    y=prim.y1,
+                    length=length,
+                    rotation=np.degrees(angle),
+                )
 
             elif isinstance(prim, gerbonara.graphic_primitives.Circle):
                 shape = gcd.Circle(

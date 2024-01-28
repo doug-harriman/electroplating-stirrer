@@ -28,7 +28,6 @@
 # TODO: See if Doc, Layout and Shape can come from the same base class.
 
 import numpy as np
-import networkx as nx
 import math
 from typing import Any, Union
 
@@ -219,6 +218,9 @@ class Layout2dOptimizer(Layout):
 
         # Process list of children, looking for closest to current position.
         # As each child is processed, pop it from the list.
+        # TODO: Potential optimization: Look for list of children that are within
+        #       a standard part pitch distance of each other.  Process as subgraphs.
+        # TODO: Look for angle and distance.  Identify ~lines of objects and start at an end.
         while len(children) > 0:
             # Find closest child
             dist = list(map(child_distance, children))
@@ -248,6 +250,7 @@ class LayoutTravelingSalesment(Layout):
         """
         Generate optimized G-Code for child object.
         """
+        import networkx as nx
         import networkx.algorithms.approximation as nx_app
 
         # Copy list elements into the NetworkX graph
@@ -261,7 +264,7 @@ class LayoutTravelingSalesment(Layout):
         for i in range(len(pos)):
             for j in range(i + 1, len(pos)):
                 dist = math.hypot(pos[i][0] - pos[j][0], pos[i][1] - pos[j][1])
-                dist = dist**4
+                dist = dist**2
                 G.add_edge(i, j, weight=dist)
 
         # Assume that the tool starts at the origin.
@@ -281,6 +284,27 @@ class LayoutTravelingSalesment(Layout):
         # Per: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.approximation.traveling_salesman.traveling_salesman_problem.html
         tsp = nx_app.greedy_tsp
         node_list = tsp(G, weight="weight", source=idx)
+
+        # tsp = nx_app.threshold_accepting_tsp
+        # node_list = tsp(
+        #     G,
+        #     weight="weight",
+        #     source=idx,
+        #     init_cycle="greedy",
+        #     max_iterations=1000,
+        #     threshold=0.1,
+        # )
+
+        # tsp = nx_app.simulated_annealing_tsp
+        # node_list = tsp(
+        #     G,
+        #     weight="weight",
+        #     source=idx,
+        #     init_cycle="greedy",
+        #     temp=500,
+        #     max_iterations=1000,
+        # )
+
         node_list = list(node_list)[:-1]
 
         for idx in node_list:
@@ -1405,7 +1429,7 @@ class Rectangle(Shape):
         is_filled=False,
     ):
         """
-        Initializes a rectangle object.
+        Initializes a Rectangle object.
         """
 
         self._points = None
@@ -1606,6 +1630,48 @@ class Rectangle(Shape):
         dist = np.linalg.norm(delta, axis=1)
         idx = np.argmin(dist)
         self._points = np.roll(self.points, -idx, axis=0)
+
+
+class Polygon(Shape):
+    """Generic Polygon"""
+
+    def __init__(
+        self,
+        points: np.array = None,
+        speed_print: float = None,
+        laser_power=None,
+        is_filled=False,
+    ):
+        """
+        Initializes a Polygon object.
+        """
+
+        self._points = None
+        super().__init__(
+            x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
+        )
+
+        self.height = height
+        self.width = width
+        self.rotation = rotation
+
+        self._is_closed = True
+        self.is_filled = is_filled
+
+    def __repr__(self):
+        return f"Polygon(n_pts={len(self.points)})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @property
+    def points(self) -> np.array:
+        """List of points defining the perimeter of the rectangle."""
+
+        if self._points is None:
+            self._points_gen()
+
+        return self._points
 
 
 class Circle(Shape):
