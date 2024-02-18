@@ -27,6 +27,14 @@
 # TODO: Support reading in a G-code file and making that a generic shape.
 # TODO: See if Doc, Layout and Shape can come from the same base class.
 
+# TODO: Convert to using SciPy for spatial operations.
+#       https://docs.scipy.org/doc/scipy/reference/spatial.html
+
+# SymPy geometry: https://docs.sympy.org/latest/modules/geometry/index.html
+# SciKit geometry: https://scikit-geometry.github.io/scikit-geometry/reference.html#two-dimensional-primitives
+# 2D Gaming library: https://pythonhosted.org/planar/
+
+
 import numpy as np
 import math
 from typing import Any, Union
@@ -590,10 +598,10 @@ class Doc:
         "M4"
     )  # M3 for consant power regardless of speed.  M4 compensates for speed.
     _laser_off = "M5"  # Default for Grbl
-    _laser_power = 0  # Percentage
-    _laser_power_default = 20  # Percentage.  Default value for document.
+    _laser_power = 0.0  # Percentage
+    _laser_power_default = 80.0  # Percentage.  Default value for document.
     _device_laser_max = (
-        1000
+        1000.0
     )  # Maximum laser power value to use, in machine units.  Set for Sainsmart laser.
 
     # Device retraction
@@ -753,10 +761,10 @@ class Doc:
         """
 
         code = self._laser_on
-        code += f" S{(self._laser_power/100)*self._device_laser_max}"
+        code += f" S{(self.laser_power/100.0)*self._device_laser_max}"
 
-        if self._laser_power < 100:
-            code += f" (Laser on @ {self._laser_power:.2g}%)"
+        if self.laser_power < 100:
+            code += f" (Laser on @ {self.laser_power:.2g}%)"
         else:
             code += f" (Laser on @ 100%)"
 
@@ -1054,7 +1062,7 @@ class Shape:
             pass
 
         if len(pts) > 1:
-            # Have a polgon of some sort.
+            # Have a list of some sort.
             for pt in pts[1:]:
                 doc.AddLine(f"G1 X{pt[0]:0.3f} Y{pt[1]:0.3f}")
 
@@ -1409,6 +1417,84 @@ class Line(Shape):
         self.y = pts[1, 1]
         self.rotation += 180
 
+class PolyLine(Shape):
+    """
+    Segmented line object.
+    """
+
+    def __init__(self,
+                 z:float=0.0,
+                 points:np.array=None,
+                 speed_print: float = None,
+                 laser_power=None):
+
+        super().__init__(
+            z=z, speed_print=speed_print, laser_power=laser_power
+        )
+
+        if points is not None:
+            self.points = points
+
+    def __repr__(self):
+        info = f"PolyLine(points={len(self.points)})"
+        return info
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @property
+    def points(self) -> np.array:
+        # List of points in the PolyLine.
+        return self._points
+
+    @points.setter
+    def points(self, points: np.array):
+
+        if not isinstance(points, np.ndarray):
+            raise ValueError("Points must be a 2D array.")
+
+        if points.shape[1] != 2:
+            raise ValueError("Points must be a 2D array with 2 columns.")
+
+        self._points = points
+
+    @property
+    def x(self) -> float:
+
+        # Center point via midpoint of ranges
+        x = (np.min(self.points[:, 0]) + np.max(self.points[:, 0])) / 2
+        return x
+
+    @property
+    def x(self) -> float:
+
+        # Center point via midpoint of ranges
+        y = (np.min(self.points[:, 1]) + np.max(self.points[:, 1])) / 2
+        return y
+
+    def distance(self, xy: np.array = np.array([0, 0])) -> float:
+        """
+        Returns distance from PolhyLine geometry end points to the given point.
+        Used for G-code scheduling optimization.
+        """
+
+        pts = np.array([self.points[0,:], self.points[-1,:]])
+        delta = pts - xy
+        dist = np.linalg.norm(delta, axis=1)
+        idx = np.argmin(dist)
+        return dist[idx]
+
+    def append(self,xy:np.array):
+        """
+        Adds a point to the PolyLine.
+        """
+
+        if not isinstance(xy, np.ndarray):
+            raise ValueError("Point must be a 2D array.")
+        if xy.shape[1] != 2:
+            raise ValueError("Points must be a 2D array with 2 columns.")
+
+        self._points = np.vstack([self._points,xy])
 
 class Rectangle(Shape):
     """
@@ -1698,6 +1784,11 @@ class Circle(Shape):
         laser_power=None,
         is_filled=False,
     ):
+        self._x = 0.0
+        self._y = 0.0
+        self._radius = 0.0
+        self._start = np.array([[0.0, 0.0]])
+
         super().__init__(
             x=x, y=y, z=z, speed_print=speed_print, laser_power=laser_power
         )
@@ -1707,11 +1798,11 @@ class Circle(Shape):
         self._is_closed = True
         self.is_filled = is_filled
 
-        # Assume start point is at -radius,0 for a circle with center (0,0)
-        self._start = np.array([[-radius, 0]])
+        # Initial start point
+        self.startpoint_set()
 
     def __repr__(self):
-        info = f"Circle(x={self.x:0.2f},y={self.y:0.2f},radius={self.radius:0.2f})"
+        info = f"Circle(xc={self.x:0.3f},yc={self.y:0.3f},radius={self.radius:0.3f},xs={self._start[0,0]:0.3f},ys={self._start[0,1]:0.3f})"
         return info
 
     def __str__(self) -> str:
@@ -1727,6 +1818,41 @@ class Circle(Shape):
             raise ValueError("Radius must be positive.")
 
         self._radius = radius
+        self.startpoint_set()
+
+    @property
+    def x(self) -> float:
+        """
+        Circle center X coordinate.
+        """
+        return self._x
+
+    @x.setter
+    def x(self, x: float = 0.0):
+        """
+        Sets Circle center X coordinate.
+        """
+        self._x = x
+
+        # Update start point
+        self.startpoint_set()
+
+    @property
+    def y(self) -> float:
+        """
+        Circle center Y coordinate.
+        """
+        return self._y
+
+    @y.setter
+    def y(self, y: float = 0.0):
+        """
+        Sets Circle center Y coordinate.
+        """
+        self._y = y
+
+        # Update start point
+        self.startpoint_set()
 
     @property
     def gcode(self) -> str:
@@ -1740,8 +1866,14 @@ class Circle(Shape):
         # G2: Clockwise
         # G3: Counter clockwise
 
+        # ARC mode motion:
+        # From the starting point, where ever the previous command left us,
+        # Go to a specified XY point, while rotating around the center point.
+        # The center point is specified as an offset from the start point.
+
         # For a cirlce, we just have to return center point.
-        return f"G2 I{-self._start[0,0]:0.3f} J{-self._start[0,1]:0.3f}"
+        delta = np.array([self.x, self.y]) - self._start[0,:]
+        return f"G2 X{self._start[0,0]:0.3f} Y{self._start[0,1]:0.3f} I{delta[0]:0.3f} J{delta[1]:0.3f}"
 
     @property
     def points(self) -> np.array:
@@ -1751,7 +1883,7 @@ class Circle(Shape):
         """
 
         # Generate point list.
-        pts = self._start + np.array([[self.x, self.y]])
+        pts = self._start
 
         return pts
 
@@ -1824,7 +1956,7 @@ class Circle(Shape):
         dist = np.linalg.norm(delta) - self.radius
         return dist
 
-    def startpoint_set(self, xy: np.array) -> None:
+    def startpoint_set(self, xy: np.array=None) -> None:
         """
         Modifies the internal geometry description so that G-Code start as closest
         to the specified point as possible.
@@ -1836,14 +1968,18 @@ class Circle(Shape):
         # Find point on perimeter that intersects the line
         # from the given point to the cirle center.
 
-        # Find angle of line from center to given point.
-        delta = xy - np.array([self.x, self.y])
-        theta = np.arctan2(delta[1], delta[0])
+        # If not specified, start at the top of the circle.
+        if xy is None:
+            theta = 0
+        else:
+            # Find angle of line from center to given point.
+            delta = xy - np.array([self.x, self.y])
+            theta = np.arctan(delta[1]/delta[0])
 
         # Find point on perimeter at angle theta
-        self._start[0, 0] = self.radius * np.cos(theta)
-        self._start[0, 1] = self.radius * np.sin(theta)
-
+        r = self.radius
+        self._start[0] = np.array([self.x,self.y]) - r * np.array([np.cos(theta),np.sin(theta)])
+        pass
 
 class Text(Shape):
     """

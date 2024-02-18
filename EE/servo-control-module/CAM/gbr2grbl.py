@@ -196,18 +196,24 @@ class GerberJob:
         """
 
         # Process files by type.
-        silks = self.silkscreen()
-        for silk in silks:
-            self._logger.debug(f"Silkscreen: {silk['Path']}")
-            g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
-            g2g.to_gcode()
 
-        self._logger.warning("Soldermask G-Code generation disabled")
-        # masks = self.mask()
-        # for mask in masks:
-        #     self._logger.debug(f"Mask: {mask['Path']}")
-        #     g2g = Gerber2Gcode(mask["Path"], mask["Polarity"])
-        #     g2g.to_gcode()
+        if False:
+            silks = self.silkscreen()
+            for silk in silks:
+                self._logger.debug(f"Silkscreen: {silk['Path']}")
+                g2g = Gerber2Gcode(silk["Path"], silk["Polarity"])
+                g2g.to_gcode()
+        else:
+            self._logger.warning("Silkscreen G-Code generation disabled")
+
+        if True:
+            masks = self.mask()
+            for mask in masks:
+                self._logger.debug(f"Mask: {mask['Path']}")
+                g2g = Gerber2Gcode(mask["Path"], mask["Polarity"])
+                g2g.to_gcode()
+        else:
+            self._logger.warning("Soldermask G-Code generation disabled")
 
 
 class Gerber2Gcode:
@@ -353,10 +359,18 @@ class Gerber2Gcode:
         # TODO: Need to support generating infill passes for my g-code objects.
 
         # G-code document
+        speed_print = 200
+        laser_power = 80.0
         doc = gcd.Doc()
+        doc.speed_position = 500
+        doc.speed_print = speed_print
+        doc.laser_power = laser_power
         # doc.layout = gcd.Layout()
         doc.layout = gcd.Layout2dOptimizer()
         # doc.layout = gcd.LayoutTravelingSalesment()
+
+        # Gerber points
+        points = []
 
         # Process Gerber geometry objects.
         for obj in self._gerber.objects:
@@ -383,6 +397,8 @@ class Gerber2Gcode:
                     rotation=prim.rotation,
                 )
 
+                points += (prim.x,prim.y)
+
             elif isinstance(prim, gerbonara.graphic_primitives.Line):
                 p1 = np.array([prim.x1, prim.y1])
                 p2 = np.array([prim.x2, prim.y2])
@@ -408,9 +424,14 @@ class Gerber2Gcode:
                     radius=prim.r,
                 )
 
+                points += (prim.x,prim.y)
+
+
             elif isinstance(prim, gerbonara.graphic_primitives.Arc):
                 self._logger.error("Arc primitive not supported")
             elif isinstance(prim, gerbonara.graphic_primitives.ArcPoly):
+                # https://gerbolyze.gitlab.io/gerbonara/graphic-primitive-api.html#:~:text=class%20gerbonara.graphic_primitives.ArcPoly
+                # TODO - ArcPoly's have some arcs.  Need to figure out how to handle them.
                 shape = gcd.Polygon(points=np.array(prim.outline))
             else:
                 msg = f"Unsupported primitive: {type(prim)}"
@@ -419,13 +440,17 @@ class Gerber2Gcode:
 
             # Add the shape to the document.
             if shape:
-                # shape.is_filled = prim.polarity_dark
+                shape.is_filled = prim.polarity_dark
                 doc.AddChild(shape)
 
         # Write the G-Code file.
         self._logger.debug(f"Generating G-Code file: {filename}")
         doc.GCode(filename)
         self._logger.debug(f"G-Code geneation complete")
+
+        # Dump points to json
+        with open("points.json", "w") as fp:
+            json.dump(points, fp)
 
         return filename
 

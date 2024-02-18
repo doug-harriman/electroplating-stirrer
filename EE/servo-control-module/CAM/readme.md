@@ -1,3 +1,9 @@
+# TODO
+
+- [] Infill should not retrace.  Do bi-di laser cutting.
+- [] G2 format is wrong.  Getting rejected by LaserGRBL as an invalid code.
+    - Proper G2: From wherever you are, you will start. Specify the XY end point withing the G2 command.  I&J represent the center delta from the start point to the end of the arc.
+
 # PCB Milling
 
 [Good overall resource](https://hobbycnc.com/pc_board_isolation_routing/pc-board-isolation-routing-kicad/)
@@ -46,12 +52,18 @@ The 60 degree triangular V-cut bits worked very well.  Robust bit, and isolated 
 
 ## Soldermask & Silkscreen
 
-Intended process is to apply two layers of soldermask/ink to the PCB, then use my UV laser to ablate the areas that I don't want filled in.  Overall technique from: https://www.youtube.com/watch?v=NuJlgw7E7vg.  Essentially:
+Intended process is to apply two layers of soldermask/ink to the PCB, then use my UV laser to ablate the areas that I don't want filled in.  Overall technique from: https://www.youtube.com/watch?v=NuJlgw7E7vg.
 
+Soldermask goes down nicely with:
+* Cover with plastic film (overhead film works well). Need rigitity.  Plastic wrap is too soft.
+* Use a squeegee to spread the ink.  I used Silicone squeegee from [Amazon](https://www.amazon.com/gp/product/B091KQFQVG/).
+* Cure with UV light.  I use a resin printer cure station for 3 min with board leaning against lamp.
+
+Essentially:
 1. Lay down & cure the base soldermask (color of choice)
 2. Ablate soldermask in areas where you want silkscreen.
 3. Apply white ink/soldermask & cure
-4. Ablate solder pads.
+4. Ablate solder pads: 80% power, 200 mm/sec
 
 ### Software Tooling
 
@@ -71,10 +83,14 @@ With 2D position scheduling optimization
 * With 0.1mm infill step size, CAMotics estimates:
     * Job time: 1m 18s (3.7% savings)
     * Total distance: 778.0mm (43.5% savings)
-* With no infille, CAMotics estimates:
+* With no infill, CAMotics estimates:
     * Job time: 14.9s (0.7% savings)
     * Total distance: 222.1mm (7.1% savings)
 
+With Traveling Salesman optimization (greedy tsp):
+* With no infill, CAMotics estimates:
+    * Job time: 14.93s (0.7% savings)
+    * Total distance: 227.4mm (7.1% savings)
 
 To do:
 
