@@ -4,6 +4,8 @@
 - [] G2 format is wrong.  Getting rejected by LaserGRBL as an invalid code.
     - Proper G2: From wherever you are, you will start. Specify the XY end point withing the G2 command.  I&J represent the center delta from the start point to the end of the arc.
 
+Another project: https://sourceforge.net/p/pygerber2gcode/code/ci/master/tree/
+
 # PCB Milling
 
 [Good overall resource](https://hobbycnc.com/pc_board_isolation_routing/pc-board-isolation-routing-kicad/)
