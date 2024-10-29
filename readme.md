@@ -1,4 +1,4 @@
-View this project on [CADLAB.io](https://cadlab.io/project/27601). 
+View this project on [CADLAB.io](https://cadlab.io/project/27601).
 
 # Firmware
 
@@ -12,6 +12,8 @@ View this project on [CADLAB.io](https://cadlab.io/project/27601).
 * [SparkFun Docs](https://www.sparkfun.com/products/11801)
 
 ### WSL USB
+
+**Note** [Simplexity documentation](https://simplexity.atlassian.net/wiki/spaces/FWSW/pages/2658566527/Docker#Host-Access) on forwarding USB to a Docker container in WSL.
 
 Overview of [WSL USB access](https://learn.microsoft.com/en-us/windows/wsl/connect-usb).
 
