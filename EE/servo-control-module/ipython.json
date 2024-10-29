@@ -1,0 +1,104 @@
+{
+  "modules": {
+    "": {
+      "cells": {
+        "J1": {
+          "attributes": {
+            "value": "Conn_01x05_Pin"
+          },
+          "connections": {
+            "1": [
+              1
+            ],
+            "5": [
+              4
+            ]
+          },
+          "port_directions": {
+            "1": "input",
+            "2": "input",
+            "3": "input",
+            "4": "input",
+            "5": "input"
+          },
+          "type": "Conn_01x05_Pin_J1_1_"
+        },
+        "J2": {
+          "attributes": {
+            "value": "Screw_Terminal_01x03"
+          },
+          "connections": {
+            "1": [
+              1
+            ],
+            "2": [
+              2
+            ],
+            "3": [
+              4
+            ]
+          },
+          "port_directions": {
+            "1": "input",
+            "2": "output",
+            "3": "input"
+          },
+          "type": "Screw_Terminal_01x03_1_"
+        },
+        "RV1": {
+          "attributes": {
+            "value": "R_Potentiometer"
+          },
+          "connections": {
+            "1": [
+              1
+            ],
+            "2": [
+              3
+            ],
+            "3": [
+              4
+            ]
+          },
+          "port_directions": {
+            "1": "input",
+            "2": "input",
+            "3": "input"
+          },
+          "type": "R_Potentiometer_1_"
+        },
+        "U1": {
+          "attributes": {
+            "value": "ATtiny85-20P"
+          },
+          "connections": {
+            "2": [
+              3
+            ],
+            "4": [
+              4
+            ],
+            "7": [
+              2
+            ],
+            "8": [
+              1
+            ]
+          },
+          "port_directions": {
+            "1": "output",
+            "2": "output",
+            "3": "output",
+            "4": "input",
+            "5": "output",
+            "6": "output",
+            "7": "output",
+            "8": "input"
+          },
+          "type": "ATtiny25V-10P_U1_1_"
+        }
+      },
+      "ports": {}
+    }
+  }
+}

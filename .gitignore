@@ -2,3 +2,7 @@
 .doc.*
 *:Zone.Identifier
 ~*
+*.erc
+*.log
+*/__pycache/**
+
