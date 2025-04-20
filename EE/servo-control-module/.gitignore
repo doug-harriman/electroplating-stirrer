@@ -1,2 +1,12 @@
+# KiCAD generated files
 *-backups
 fp-info-cache
+fp-lib-table
+*.erc
+*.log
+*.svg
+*.drl
+*.step
+
+# KiKit generated files
+panel.kicad_*

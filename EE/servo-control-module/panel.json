@@ -1,0 +1,56 @@
+{
+    // Text not working with KiKit 1.6 and KiCAD 9
+    "text": {
+        "text": "DLH Designs: {boardTitle}",
+        "anchor": "mt",
+        "layer": 1,
+    },
+    "layout": {
+        "type": "grid",
+        "rows": 1,
+        "cols": 1,
+        "hspace": "0mm",
+        "vspace": "0mm",
+        "space": "6mm",
+        "rotation": "0deg",
+        "alternation": "none",
+    },
+    // Framing
+    // As of 13-Apr-2025 the KiKit image on docker seems to be working
+    // with KiCAD 9.  However, the 'tightframe' option is not working.
+    // Once native v9 support is added, should try tightframe again.
+    // Also, tooling holes not working.
+    "framing": {
+        "type": "frame",
+        "space": "3mm",
+        "width": "5mm",
+        "cuts": "none"
+        // "tooling": {
+        //     "type": "4hole",
+        //     "size": "2mm", // Use 2.0 mm drill and dowel pins
+        //     "hoffset": "2mm",
+        //     "voffset": "2mm",
+        //     "paste": true
+        // }
+    },
+    "tabs": {
+        "type": "fixed",
+        "width": "5mm",
+        "vcount": 1,
+        "hcount": 1,
+    },
+    "cuts": {
+        // "type": "none"
+        "type": "mousebites",
+        "drill": "1mm",
+        "spacing": "1.5mm",
+        // "offset": "-0.5mm",
+        // "prolong": "0.5mm"
+    },
+    "copperfill": {
+        "type": "solid"
+    },
+    // "post": {
+    //     "millradius": "1mm",
+    // }
+}
