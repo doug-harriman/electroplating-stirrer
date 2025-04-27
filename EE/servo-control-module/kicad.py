@@ -14,20 +14,20 @@ import gerbonara
 from kinparse import parse_netlist
 from pyparsing.results import ParseResults
 
+
 class SCH:
     """KiCad 8 Schematic CLI interface"""
 
-    def __init__(self,file:str=None) -> None:
-
+    def __init__(self, file: str | Path = None) -> None:
         # Store the command.
-        self._run = sh.Command('kicad-cli').bake('sch')
+        self._run = sh.Command("kicad-cli").bake("sch")
 
         self._file = None
         if file:
             self.file = file
 
     @property
-    def file(self)->str:
+    def file(self) -> str:
         """
         KiCad PCB file name.
         If set with a non-existent '.kicad_pcb' extension, will substitute that exension.
@@ -36,14 +36,16 @@ class SCH:
         return self._file
 
     @file.setter
-    def file(self, value:str):
-
-        if not isinstance(value, str):
-            raise TypeError(f"KiCad schematic file: expected str, got: {type(value)}")
+    def file(self, value: str | Path):
+        if not isinstance(value, str) and not isinstance(value, Path):
+            raise TypeError(
+                f"KiCad schematic file: expected str or Path, got: {type(value)}"
+            )
 
         # Substitute the extension if needed
-        value = Path(value)
-        value = value.with_suffix('.kicad_sch')
+        if not isinstance(value, Path):
+            value = Path(value)
+        value = value.with_suffix(".kicad_sch")
 
         if not value.is_file():
             raise FileNotFoundError(f"KiCad schematic file not found: {value}")
@@ -51,18 +53,18 @@ class SCH:
         self._file = value
 
     @property
-    def version(self)->str:
+    def version(self) -> str:
         """
         KiCad version.
         """
 
         # Run command
-        version = sh.Command('kicad-cli')('--version').strip()
+        version = sh.Command("kicad-cli")("--version").strip()
 
         # Return all
         return version
 
-    def netlist(self)->ParseResults:
+    def netlist(self) -> ParseResults:
         """
         Generate a netlist from the KiCad schematic file.
 
@@ -74,8 +76,8 @@ class SCH:
             raise ValueError("KiCad schematic file not set")
 
         # Run command
-        outfile = self.file.with_suffix('.net')
-        self._run('export','netlist',self.file)
+        outfile = self.file.with_suffix(".net")
+        self._run("export", "netlist", self.file)
 
         # Load results
         netlist = parse_netlist(outfile)
@@ -83,7 +85,7 @@ class SCH:
         # Return all
         return outfile, netlist
 
-    def to_pdf(self,vars:dict=None)->str:
+    def to_pdf(self, vars: dict = None) -> str:
         """
         Generate a PDF from the KiCad schematic file.
 
@@ -99,34 +101,34 @@ class SCH:
 
         # TODO: Test this, it is untested.  May need comma between variable definitions.
         args = None
-        if vars and not isinstance(vars,dict):
+        if vars and not isinstance(vars, dict):
             raise TypeError(f"vars: expected dict, got: {type(vars)}")
         if vars:
-            args = ['-D ']
-            for k,v in vars.items():
-                args += [f'{k}={v}']
+            args = ["-D "]
+            for k, v in vars.items():
+                args += [f"{k}={v}"]
 
         # Run command
-        outfile = self.file.with_suffix('.pdf')
-        self._run('export','pdf',args,self.file)
+        outfile = self.file.with_suffix(".pdf")
+        self._run("export", "pdf", args, self.file)
 
         # Return all
         return outfile
 
+
 class PCB:
     """KiCad 8 PCB CLI interface"""
 
-    def __init__(self,file:str=None) -> None:
-
+    def __init__(self, file: str | Path = None) -> None:
         # Store the command.
-        self._run = sh.Command('kicad-cli').bake('pcb')
+        self._run = sh.Command("kicad-cli").bake("pcb")
 
         self._file = None
         if file:
             self.file = file
 
     @property
-    def file(self)->str:
+    def file(self) -> str:
         """
         KiCad PCB file name.
         If set with a non-existent '.kicad_pcb' extension, will substitute that exension.
@@ -135,14 +137,14 @@ class PCB:
         return self._file
 
     @file.setter
-    def file(self, value:str):
-
-        if not isinstance(value, str):
-            raise TypeError(f"KiCad PCB file: expected str, got: {type(value)}")
+    def file(self, value: str | Path) -> None:
+        if not isinstance(value, str) and not isinstance(value, Path):
+            raise TypeError(f"KiCad PCB file: expected str or Path, got: {type(value)}")
 
         # Substitute the extension if needed
-        value = Path(value)
-        value = value.with_suffix('.kicad_pcb')
+        if not isinstance(value, Path):
+            value = Path(value)
+        value = value.with_suffix(".kicad_pcb")
 
         if not value.is_file():
             raise FileNotFoundError(f"KiCad PCB file not found: {value}")
@@ -150,19 +152,19 @@ class PCB:
         self._file = value
 
     @property
-    def version(self)->str:
+    def version(self) -> str:
         """
         KiCad version.
         """
 
         # Run command
-        version = sh.Command('kicad-cli')('--version').strip()
+        version = sh.Command("kicad-cli")("--version").strip()
 
         # Return all
         return version
 
     @property
-    def layers(self)->list[str]:
+    def layers(self) -> list:
         """
         Returns list of active layers in PCB file.
         Generates IPC-2581 output file, then parses for active layers.
@@ -171,27 +173,28 @@ class PCB:
         if not self.file:
             raise ValueError("KiCad PCB file not set")
 
-
         # Run command
-        outfile = self.file.with_suffix('.xml')
-        self._run('export','ipc2581',self.file)
+        outfile = self.file.with_suffix(".xml")
+        self._run("export", "ipc2581", self.file)
 
         # Load results
         tree = ET.parse(outfile)
 
         # Find all LayerRef elements
         # When parsed, the namespace is expanded per teh xmlns link.
-        layer_refs = tree.findall('.//{http://webstds.ipc.org/2581}LayerRef')
+        layer_refs = tree.findall(".//{http://webstds.ipc.org/2581}LayerRef")
 
         # Extract name values
-        layers = [layer_ref.get('name').replace('LAYER:','') for layer_ref in layer_refs]
+        layers = [
+            layer_ref.get("name").replace("LAYER:", "") for layer_ref in layer_refs
+        ]
 
         # Drop the dialetric layers
-        layers = [name for name in layers if not name.startswith('DIELECTRIC')]
+        layers = [name for name in layers if not name.startswith("DIELECTRIC")]
 
         return layers
 
-    def drc(self)->dict:
+    def drc(self) -> dict:
         """
         Run PCB design rules check (DRC) on the KiCad PCB file.
 
@@ -203,21 +206,23 @@ class PCB:
             raise ValueError("KiCad PCB file not set")
 
         args = []
-        args += ['--format','json']
-        args += ['--schematic-parity']
-        args += ['--severity-all']
+        args += ["--format", "json"]
+        args += ["--schematic-parity"]
+        args += ["--severity-all"]
 
         # Run command and load results
         with tempfile.NamedTemporaryFile(delete=True) as temp:
-            args += ['--output',temp.name]
-            self._run('drc',args, self.file)
+            args += ["--output", temp.name]
+            self._run("drc", args, self.file)
 
             # Read the results
             results = json.load(temp)
 
         return results
 
-    def drill(self,mirror_y:bool=False,mapfile:bool=False)->tuple[str,gerbonara.ExcellonFile]:
+    def drill(
+        self, mirror_y: bool = False, mapfile: bool = False
+    ) -> tuple:  # [str, gerbonara.ExcellonFile]:
         """
         Generates drill data for the KiCad PCB file.
 
@@ -232,23 +237,23 @@ class PCB:
 
         if not self.file:
             raise ValueError("KiCad PCB file not set")
-        if not isinstance(mirror_y,bool):
+        if not isinstance(mirror_y, bool):
             raise TypeError(f"mirror_y: expected bool, got: {type(mirror_y)}")
-        if not isinstance(mapfile,bool):
+        if not isinstance(mapfile, bool):
             raise TypeError(f"mapfile: expected bool, got: {type(mapfile)}")
 
         # Handle defaults
-        outfile = self.file.with_suffix('.drl')
+        outfile = self.file.with_suffix(".drl")
         args = []
-        args += ['--format','excellon']
+        args += ["--format", "excellon"]
 
         if mirror_y:
-            args += ['--mirror-y']
+            args += ["--mirror-y"]
         if mapfile:
-            args += ['--map-file','pdf']
+            args += ["--map-file", "pdf"]
 
         # Run command
-        self._run('export','drill',args, self.file)
+        self._run("export", "drill", args, self.file)
 
         # Load results
         data = gerbonara.ExcellonFile.open(outfile)
@@ -256,7 +261,7 @@ class PCB:
         # Return all
         return outfile, data
 
-    def gerbers(self,layers:list[str]=None)->list[Path]:
+    def gerbers(self, layers: list = None) -> list:
         """
         Generates Gerber for all specified layers in the KiCad PCB file.
 
@@ -282,31 +287,32 @@ class PCB:
                     continue
                 layers.append(layer)
 
-        layer_str = ''
+        layer_str = ""
         for layer in layers:
-            layer_str += layer + ','
+            layer_str += layer + ","
         layer_str = layer_str[:-1]
-        args = ['--layers',layer_str]
+        args = ["--layers", layer_str]
 
         print(f"Exporting layers: {','.join(layers)}")
 
         # Run command
-        res = self._run('export','gerbers',args, self.file)
+        res = self._run("export", "gerbers", args, self.file)
 
         # Find all generated file names
         files = re.findall(r"'(.*?)'", res)
         newfiles = []
         for file in files:
             file = Path(file)
-            newfile = Path(file).with_suffix('.gbr')
+            newfile = Path(file).with_suffix(".gbr")
             file.rename(newfile)
             newfiles.append(newfile)
 
         # Include the jobfile.
-        jobfile = self.file.stem + '-job.gbrjob'
+        jobfile = self.file.stem + "-job.gbrjob"
         newfiles.append(Path(jobfile))
 
         return newfiles
+
 
 def clean():
     """
@@ -314,10 +320,22 @@ def clean():
     """
 
     # List all projects in the current directory
-    projects = list(Path('.').glob('*.kicad_pro'))
-    extensions = ['.drl','.dxf','.json','.net','.pdf',
-                  '.rpt','.svg','.pdf','.wrl','.step',
-                  '.xml','.gbr','.gbrjob']
+    projects = list(Path(".").glob("*.kicad_pro"))
+    extensions = [
+        ".drl",
+        ".dxf",
+        ".json",
+        ".net",
+        ".pdf",
+        ".rpt",
+        ".svg",
+        ".pdf",
+        ".wrl",
+        ".step",
+        ".xml",
+        ".gbr",
+        ".gbrjob",
+    ]
 
     # Remove all files with the extensions
     for project in projects:
@@ -327,18 +345,16 @@ def clean():
                 file.unlink()
 
         # Gerbers have a modified filename
-        gerbers = list(Path('.').glob(f'{project.stem}*.gbr'))
+        gerbers = list(Path(".").glob(f"{project.stem}*.gbr"))
         for gerber in gerbers:
             gerber.unlink()
 
-        gerber_job = list(Path('.').glob(f'{project.stem}*.gbrjob'))
+        gerber_job = list(Path(".").glob(f"{project.stem}*.gbrjob"))
         for job in gerber_job:
             job.unlink()
 
 
-
-if __name__ == '__main__':
-
-    fn = 'servo-control-module.kicad_pcb'
+if __name__ == "__main__":
+    fn = "servo-control-module.kicad_pcb"
     pcb = PCB(fn)
-    f,d = pcb.drill()
+    f, d = pcb.drill()
