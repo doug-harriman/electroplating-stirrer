@@ -48,7 +48,7 @@ def venv() -> bool:
         return False
 
 
-def board_find() -> Path:
+def board_find(board: str = None) -> Path:
     """
     Find the KiCAD PCB file in the current directory.
 
@@ -56,6 +56,13 @@ def board_find() -> Path:
         ValueError: If no KiCAD PCB file is found.
         ValueError: If multiple KiCAD PCB files are found.
     """
+
+    if board:
+        if isinstance(board, str):
+            board = Path(board)
+        if not board.exists():
+            raise ValueError(f"Board file {board} does not exist.")
+        return board
 
     boards = list(Path().glob("*.kicad_pcb"))
     for board in boards:
@@ -88,24 +95,42 @@ def panelize(ctx: context.Context, board: str = None) -> None:
     Panelize the PCB using KiKit.
     """
 
-    if board is None:
-        # Find the KiCAD PCB file in the current directory
-        board = board_find()
-
-    if not isinstance(board, Path):
-        board = Path(board)
-
-    if not board.exists():
-        raise ValueError(f"Board file {board} does not exist.")
+    board = board_find(board)
 
     # Run the panelizer script
     ctx.run(f"kikit panelize -p panel.json {board.name} panel.kicad_pcb")
 
 
 @task
+def drills(ctx: context.Context, board: str = None) -> None:
+    """
+    Generates list of drill diameters in the PCB.
+    """
+
+    if not venv():
+        raise ValueError("uv virtual environment must be activated.  Try >>. venv")
+
+    board = board_find(board)
+
+    # -------------------------------------------------------------------
+    # Generate the Excelon drill file
+    # -------------------------------------------------------------------
+    from kicad import PCB
+
+    pcb = PCB(board)
+    drill_file, data = pcb.drill()
+    drill_file.unlink()  # Remove drill file
+
+    # Print list of drill diameters
+    print(f"\n'{board.name}' specified drill diameters:")
+    for drill in data.drill_sizes():
+        print(f"\t{drill} [mm]")
+
+
+@task
 def drill(ctx: context.Context, board: str = None) -> None:
     """
-    Generate drill files for the PCB.
+    Generate CNC drill files for the PCB.
     """
 
     if not venv():
@@ -114,18 +139,10 @@ def drill(ctx: context.Context, board: str = None) -> None:
     from kicad import PCB
     from string import Template
 
-    if board is None:
-        # Find the KiCAD PCB file in the current directory
-        board = board_find()
-
-    if not isinstance(board, Path):
-        board = Path(board)
-
-    if not board.exists():
-        raise ValueError(f"Board file {board} does not exist.")
+    board = board_find(board)
 
     # -------------------------------------------------------------------
-    # Generate the drill files
+    # Generate the Excelon drill file
     # -------------------------------------------------------------------
     pcb = PCB(board)
     drill_file, _ = pcb.drill()
@@ -156,6 +173,7 @@ def drill(ctx: context.Context, board: str = None) -> None:
 
     # 2) Call pcb2gcode to generate the G-code.
     cmd = f"pcb2gcode --config=cnc-common.config,{drl_cfg_file} --drill {drl_fn} --basename {board.stem}"
+    cmd += " > /dev/null 2>&1"
     ctx.run(cmd)
     drl_cfg_file.unlink()  # Remove used rendered template file
 
@@ -166,15 +184,7 @@ def process(ctx: context.Context, board: str = None) -> None:
     Process the PCB file generating all fabrication files.
     """
 
-    if board is None:
-        # Find the KiCAD PCB file in the current directory
-        board = board_find()
-
-    if not isinstance(board, Path):
-        board = Path(board)
-
-    if not board.exists():
-        raise ValueError(f"Board file {board} does not exist.")
+    board = board_find(board)
 
     # Process steps
     print(f"Processing: {board}", flush=True)
@@ -182,6 +192,11 @@ def process(ctx: context.Context, board: str = None) -> None:
     # Panelize the PCB
     print("\tpanelizing...", end="", flush=True)
     panelize(ctx, board)
+    print(" done", flush=True)
+
+    # Generate drill files
+    print("\tdrilling...", end="", flush=True)
+    drill(ctx, board)
     print(" done", flush=True)
 
     # Process complete
