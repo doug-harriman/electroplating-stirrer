@@ -194,6 +194,31 @@ class PCB:
 
         return layers
 
+    def edge_cuts(self) -> Path:
+        """
+        Generates Edge Cut Gerber.
+        """
+
+        # Command line arguments
+        params = {
+            "--layers": "Edge.Cuts",
+        }
+        options = ["--no-netlist", "--use-drill-file-origin", "--no-protel-ext"]
+
+        args = ""
+        for param in params:
+            args += f" {param}={params[param]}"
+        for option in options:
+            args += f" {option}"
+        args += f" {self.file}"
+        args = args.split()
+
+        self._run.export("gerbers", *args)
+
+        # Return output file
+        outfile = Path(self.file.stem + "-Edge_Cuts.gbr")
+        return outfile
+
     def drc(self) -> dict:
         """
         Run PCB design rules check (DRC) on the KiCad PCB file.
