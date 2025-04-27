@@ -1,3 +1,6 @@
+# Python
+*.pyc
+
 # KiCAD generated files
 *-backups
 fp-info-cache
