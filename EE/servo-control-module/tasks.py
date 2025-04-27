@@ -3,6 +3,13 @@ from pathlib import Path
 import sys
 
 
+# Silence warnings from gerbonara
+if not sys.warnoptions:
+    import warnings
+
+    warnings.simplefilter("ignore")
+
+
 @task
 def clean(ctx: context.Context) -> None:
     """
@@ -90,7 +97,7 @@ def board(ctx: context.Context) -> None:
 
 
 @task
-def panelize(ctx: context.Context, board: str = None) -> None:
+def panelize(ctx: context.Context, board: str = None) -> Path:
     """
     Panelize the PCB using KiKit.
     """
@@ -98,7 +105,10 @@ def panelize(ctx: context.Context, board: str = None) -> None:
     board = board_find(board)
 
     # Run the panelizer script
-    ctx.run(f"kikit panelize -p panel.json {board.name} panel.kicad_pcb")
+    panel_pcb = Path("panel.kicad_pcb")
+    ctx.run(f"kikit panelize -p panel.json {board.name} {panel_pcb}")
+
+    return panel_pcb
 
 
 @task
@@ -191,13 +201,13 @@ def process(ctx: context.Context, board: str = None) -> None:
 
     # Panelize the PCB
     print("\tpanelizing...", end="", flush=True)
-    panelize(ctx, board)
-    print(" done", flush=True)
+    panel_pcb = panelize(ctx, board)
+    print("done", flush=True)
 
     # Generate drill files
     print("\tdrilling...", end="", flush=True)
-    drill(ctx, board)
-    print(" done", flush=True)
+    drill(ctx, panel_pcb)
+    print("done", flush=True)
 
     # Process complete
     print("Processing complete", flush=True)

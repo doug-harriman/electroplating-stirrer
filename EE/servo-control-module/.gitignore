@@ -13,3 +13,6 @@ fp-lib-table
 
 # KiKit generated files
 panel.kicad_*
+
+# CNC files
+*.ngc
