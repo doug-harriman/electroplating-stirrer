@@ -19,6 +19,7 @@ def clean(ctx: context.Context) -> None:
         "erx",  # KiCAD rules check files
         "xml",  # XML.  Created by kicad.py
         "ngc",  # G-Code
+        "drl_cfg",  # Rendered drill config files
     ]
 
     for ext in extensions:
@@ -71,6 +72,17 @@ def board_find() -> Path:
 
 
 @task
+def board(ctx: context.Context) -> None:
+    """
+    Lists name of default project board file.
+    """
+
+    board = board_find()
+
+    print(f"Project board file: {board}", flush=True)
+
+
+@task
 def panelize(ctx: context.Context, board: str = None) -> None:
     """
     Panelize the PCB using KiKit.
@@ -95,8 +107,12 @@ def drill(ctx: context.Context, board: str = None) -> None:
     """
     Generate drill files for the PCB.
     """
-    from kicad import PCB
 
+    if not venv():
+        raise ValueError("uv virtual environment must be activated.  Try >>. venv")
+
+    from kicad import PCB
+    from string import Template
 
     if board is None:
         # Find the KiCAD PCB file in the current directory
@@ -108,14 +124,40 @@ def drill(ctx: context.Context, board: str = None) -> None:
     if not board.exists():
         raise ValueError(f"Board file {board} does not exist.")
 
+    # -------------------------------------------------------------------
     # Generate the drill files
+    # -------------------------------------------------------------------
     pcb = PCB(board)
     drill_file, _ = pcb.drill()
     drill_file = Path(drill_file)
     if not drill_file.exists():
         raise ValueError(f"Drill file {drill_file} file generation error.")
 
+    # -------------------------------------------------------------------
     # Generate G-code from the drill files.
+    # -------------------------------------------------------------------
+
+    # 1) Render the drill config template with the proper file name.
+    drl_cfg = Path("cnc-drill.config")
+    if not drl_cfg.exists():
+        raise ValueError(f"Drill config file {drl_cfg} does not exist.")
+
+    # Load the drill config temmplate and save rendered template.
+    with open(drl_cfg, "r") as f:
+        drl_cfg = f.read()
+
+    drl_cfg = Template(drl_cfg)
+    drl_fn = str(board.with_suffix(".drl"))
+    drl_cfg = drl_cfg.substitute(file=drl_fn)
+
+    drl_cfg_file = board.with_suffix(".drl_cfg")
+    with open(drl_cfg_file, "w") as f:
+        f.write(drl_cfg)
+
+    # 2) Call pcb2gcode to generate the G-code.
+    cmd = f"pcb2gcode --config=cnc-common.config,{drl_cfg_file} --drill {drl_fn} --basename {board.stem}"
+    ctx.run(cmd)
+    drl_cfg_file.unlink()  # Remove used rendered template file
 
 
 @task
@@ -138,7 +180,7 @@ def process(ctx: context.Context, board: str = None) -> None:
     print(f"Processing: {board}", flush=True)
 
     # Panelize the PCB
-    print(f"\tpanelizing...", end="", flush=True)
+    print("\tpanelizing...", end="", flush=True)
     panelize(ctx, board)
     print(" done", flush=True)
 
