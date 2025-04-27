@@ -1,7 +1,6 @@
 from invoke import task, context
 from pathlib import Path
 import sys
-from kicad import PCB
 
 
 @task
@@ -96,6 +95,8 @@ def drill(ctx: context.Context, board: str = None) -> None:
     """
     Generate drill files for the PCB.
     """
+    from kicad import PCB
+
 
     if board is None:
         # Find the KiCAD PCB file in the current directory
