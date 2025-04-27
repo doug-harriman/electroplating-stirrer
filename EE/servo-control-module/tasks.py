@@ -21,6 +21,7 @@ def clean(ctx: context.Context) -> None:
     extensions = [
         "svg",  # Graphic images for laser.
         "gbr",  # Gerbers
+        "gbrjob",  # Gerber job files
         "erc",  # Electrical rules check files
         "log",  # Logs
         "drl",  # Drill files
@@ -41,19 +42,19 @@ def clean(ctx: context.Context) -> None:
         file.unlink()
 
 
-def venv() -> bool:
+def pyver() -> bool:
     """
-    Check if the virtual environment is active.
+    Checks Python version for >= 3.11.
 
     Returns:
-        bool: True if the virtual environment is active, False otherwise.
+        bool: True if version is new enough.
     """
 
-    # Check if the virtual environment is active
-    if "uv/python" in sys.base_prefix:
-        return True
-    else:
+    vinfo = sys.version_info
+    if vinfo.major < 3 or (vinfo.major == 3 and vinfo.minor < 11):
         return False
+
+    return True
 
 
 def board_find(board: str = None) -> Path:
@@ -176,8 +177,8 @@ def drills(ctx: context.Context, board: str = None) -> None:
     Generates list of drill diameters in the PCB.
     """
 
-    if not venv():
-        raise ValueError("uv virtual environment must be activated.  Try >>. venv")
+    if not pyver():
+        raise ValueError("Python too old.  Try >>. venv")
 
     board = board_find(board)
 
@@ -205,10 +206,10 @@ def drill(ctx: context.Context, board: str = None) -> None:
     # if not venv():
     #     raise ValueError("uv virtual environment must be activated.  Try >>. venv")
 
+    board = board_find(board)
+
     from kicad import PCB
     from string import Template
-
-    board = board_find(board)
 
     # -------------------------------------------------------------------
     # Generate the Excelon drill file
@@ -241,7 +242,10 @@ def drill(ctx: context.Context, board: str = None) -> None:
         f.write(drl_cfg)
 
     # 2) Call pcb2gcode to generate the G-code.
-    cmd = f"pcb2gcode --config=cnc-common.config,{drl_cfg_file} --drill {drl_fn} --basename {board.stem}"
+    # cmd = f"pcb2gcode --config=cnc-common.config,{drl_cfg_file} --drill {drl_fn} --basename {board.stem}"
+    cmd = (
+        f"pcb2gcode --config=cnc-common.config,{drl_cfg_file}  --basename {board.stem}"
+    )
     cmd += " > /dev/null 2>&1"
     ctx.run(cmd)
     drl_cfg_file.unlink()  # Remove used rendered template file
@@ -251,6 +255,57 @@ def drill(ctx: context.Context, board: str = None) -> None:
     # -------------------------------------------------------------------
     drill_nc_file = Path(f"{board.stem}_drill.ngc")
     drill_file_split(drill_nc_file)
+    drill_nc_file.unlink()  # Remove G-code file
+
+
+@task
+def edgecut(ctx: context.Context, board: str = None) -> None:
+    """
+    Generates CNC edge cut out files for the PCB.
+    """
+
+    board = board_find(board)
+
+    from kicad import PCB
+    from string import Template
+
+    # -------------------------------------------------------------------
+    # Generate gerbers.
+    # -------------------------------------------------------------------
+    pcb = PCB(board)
+    gbr_file = pcb.edge_cuts()
+
+    # -------------------------------------------------------------------
+    # Generate G-code from the Gerber file.
+    # -------------------------------------------------------------------
+
+    # 1) Render the drill config template with the proper file name.
+    edge_cfg = Path("cnc-edge.config")
+    if not edge_cfg.exists():
+        raise ValueError(f"Edge cut config file {edge_cfg} does not exist.")
+
+    # Load the drill config temmplate and save rendered template.
+    with open(edge_cfg, "r") as f:
+        edge_cfg = f.read()
+
+    edge_cfg = Template(edge_cfg)
+    drl_fn = board.stem + "-Edge_Cuts.gbr"
+    edge_cfg = edge_cfg.substitute(file=drl_fn)
+
+    edge_cfg_file = board.with_suffix(".edge_cfg")
+    with open(edge_cfg_file, "w") as f:
+        f.write(edge_cfg)
+
+    # 2) Call pcb2gcode to generate the G-code.
+    cmd = (
+        f"pcb2gcode --config=cnc-common.config,{edge_cfg_file} --basename {board.stem}"
+    )
+    cmd += " > /dev/null 2>&1"
+    ctx.run(cmd)
+
+    # Remove intermedate files
+    edge_cfg_file.unlink()
+    gbr_file.unlink()
 
 
 @task
@@ -273,6 +328,23 @@ def process(ctx: context.Context, board: str = None) -> None:
     print("\tdrilling...", end="", flush=True)
     drill(ctx, panel_pcb)
     print("done", flush=True)
+
+    # Generate edge cut files
+    print("\tedge cutting...", end="", flush=True)
+    edgecut(ctx, panel_pcb)
+    print("done", flush=True)
+
+    # Lots of intermediate SVG files are created.
+    intermediate_files = [
+        "original_drill.svg",
+        "outp0_original_outline.svg",
+        "processed_outline.svg",
+        "traced_outline.svg",
+    ]
+    for file in intermediate_files:
+        file = Path(file)
+        if file.exists():
+            file.unlink()
 
     # Process complete
     print("Processing complete", flush=True)
