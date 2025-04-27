@@ -219,6 +219,53 @@ class PCB:
         outfile = Path(self.file.stem + "-Edge_Cuts.gbr")
         return outfile
 
+    def trace_etch_mask(self, front: bool = True, back: bool = True) -> list[Path]:
+        """
+        Generates mask SVG file for etching traces.
+
+        Args:
+        - front (bool): Generate front mask.  Default = True.
+        - back (bool): Generate back mask.  Default = True.
+
+        Returns:
+        - list[Path]: Paths to the generated SVG file(s).
+
+        """
+
+        layers = ""
+        if front:
+            layers += "F.Cu"
+        if back:
+            if layers:
+                layers += ","
+            layers += "B.Cu"
+
+        # Command line arguments
+        params = {
+            "--layers": layers,
+            "--page-size-mode": 2,
+        }
+        options = [
+            "--negative",
+            "--black-and-white",
+        ]
+
+        args = ""
+        for param in params:
+            args += f" {param}={params[param]}"
+        for option in options:
+            args += f" {option}"
+        args += f" {self.file}"
+        args = args.split()
+
+        self._run.export("svg", *args)
+
+        # Return output file
+        outfile = self.file.with_suffix(".svg")
+        newfile = Path(self.file.stem + "-tracemask-back.svg")
+        outfile.rename(newfile)
+        return [outfile]
+
     def drc(self) -> dict:
         """
         Run PCB design rules check (DRC) on the KiCad PCB file.

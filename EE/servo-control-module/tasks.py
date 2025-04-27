@@ -309,6 +309,20 @@ def edgecut(ctx: context.Context, board: str = None) -> None:
 
 
 @task
+def tracemask(ctx: context.Context, board: str = None) -> None:
+    """
+    Generates trace etch mask SVG files for laser etching.
+    """
+
+    board = board_find(board)
+
+    from kicad import PCB
+
+    pcb = PCB(board)
+    svgs = pcb.trace_etch_mask(front=False, back=True)
+
+
+@task
 def process(ctx: context.Context, board: str = None) -> None:
     """
     Process the PCB file generating all fabrication files.
@@ -332,6 +346,11 @@ def process(ctx: context.Context, board: str = None) -> None:
     # Generate edge cut files
     print("\tedge cutting...", end="", flush=True)
     edgecut(ctx, panel_pcb)
+    print("done", flush=True)
+
+    # Generate trace etch mask files
+    print("\ttrace etch mask...", end="", flush=True)
+    tracemask(ctx, panel_pcb)
     print("done", flush=True)
 
     # Lots of intermediate SVG files are created.
