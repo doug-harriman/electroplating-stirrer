@@ -1,6 +1,8 @@
 # Workflow
 
-Note: For all operations, keep grbl software running and maintain XY home position.
+> **Note**: For all operations, keep grbl software running and maintain XY home position.
+
+> **Note**: [CADLAB.io](https://cadlab.io/project/27601/main/files) view of github repo.  Login with google account.
 
 ## PCB Prep
 
