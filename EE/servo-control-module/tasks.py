@@ -1,5 +1,6 @@
 from invoke import task, context
 from pathlib import Path
+import re
 import sys
 
 
@@ -85,6 +86,64 @@ def board_find(board: str = None) -> Path:
     return boards[0]
 
 
+def drill_file_split(file: Path) -> None:
+    """
+    Split the drill file into separate files, one for each bit.
+    """
+
+    if not isinstance(file, Path):
+        raise TypeError(f"File must be a Path object, got: {type(file)}")
+    if not file.exists():
+        raise ValueError(f"File {file} does not exist.")
+
+    # Read the file content
+    with open(file, "r") as fp:
+        lines = fp.readlines()
+
+    # Extract bit sizes from the "Bit sizes" line
+    bit_sizes_line = next(line for line in lines if "Bit sizes" in line)
+    bit_sizes = re.findall(r"\[([\d.]+mm)\]", bit_sizes_line)
+
+    # Find the header (everything before the first T<N> line)
+    header = []
+    for line in lines:
+        if re.match(r"T\d+", line.strip()):
+            break
+        header.append(line)
+
+    # Split the file into sections based on T<N> and "(Retract)"
+    sections = {}
+    current_tool = None
+    current_section = []
+
+    for line in lines:
+        if re.match(r"T\d+", line.strip()):  # Start of a new tool section
+            if current_tool is not None:
+                sections[current_tool] = current_section
+            current_tool = line.strip()
+            current_section = [line]
+        elif "retract" in line.lower():  # End of a tool section
+            if current_tool is not None:
+                current_section.append(line)
+                sections[current_tool] = current_section
+                current_tool = None
+                current_section = []
+        elif current_tool is not None:
+            current_section.append(line)
+
+    # Create new files for each bit size
+    bit_idx = 0
+    for tool in sections:
+        bit_size = bit_sizes[bit_idx]
+        bit_idx += 1
+        output_file = Path(f"{file.stem}_{bit_size}.ngc")
+        with open(output_file, "w") as out_file:
+            # Write the header
+            out_file.writelines(header)
+            # Write the corresponding section for the tool
+            out_file.writelines(sections[tool])
+
+
 @task
 def board(ctx: context.Context) -> None:
     """
@@ -143,8 +202,8 @@ def drill(ctx: context.Context, board: str = None) -> None:
     Generate CNC drill files for the PCB.
     """
 
-    if not venv():
-        raise ValueError("uv virtual environment must be activated.  Try >>. venv")
+    # if not venv():
+    #     raise ValueError("uv virtual environment must be activated.  Try >>. venv")
 
     from kicad import PCB
     from string import Template
@@ -187,6 +246,12 @@ def drill(ctx: context.Context, board: str = None) -> None:
     ctx.run(cmd)
     drl_cfg_file.unlink()  # Remove used rendered template file
 
+    # -------------------------------------------------------------------
+    # Split G-code into separate files, one per drill size.
+    # -------------------------------------------------------------------
+    drill_nc_file = Path(f"{board.stem}_drill.ngc")
+    drill_file_split(drill_nc_file)
+
 
 @task
 def process(ctx: context.Context, board: str = None) -> None:
@@ -211,3 +276,9 @@ def process(ctx: context.Context, board: str = None) -> None:
 
     # Process complete
     print("Processing complete", flush=True)
+
+
+if __name__ == "__main__":
+    from invoke import context
+
+    drill(context.Context())
