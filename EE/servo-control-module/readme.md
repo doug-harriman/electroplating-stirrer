@@ -1,35 +1,33 @@
-## Workflow
+# Workflow
 
 Note: For all operations, keep grbl software running and maintain XY home position.
 
-### PCB Prep
+## PCB Prep
 
 1. Clean the PCB with metal polisher to remove oxidation.  I use [Brasso](https://www.amazon.com/gp/product/B0000DCZ2X/).  PCB should be shiny and clean.
 1. Spray paint the PCB.  Ideally would use solder mask, but the epoxy material is hard to fully ablate.  Paint ablates nicely, though it is prone to scratching.
 
-### Design Prep
-1. Panelize PCB using KiKit.  Use to provide frame and tabs with mousebites.
+## Design Prep
+1. Panelize PCB using KiKit.  Use to provide frame and tabs with mousebites.  The `kikit.sh` script performs the process.
+1. Load the panelized PCB into KiCAD.
+1. Export a PCB image for laser ablation of the paint to expose the trace isolation areas.  Use the KiCAD "plot" function.  The image below shows the settings, assuming we're exposing the back side copper. ![PCB plot settings](kicad-plot-settings-for-trace-laser-ablation.png)
 
 
-### PCB Fabrication
+## PCB Fabrication
 
 1. Tape down PCB on mill.  Rough cut the PCB to size if that makes sense.
 1. Expect to route/drill through the PCB into the supporting material, so use a sacrificial material.
 1. Drill all holes, including tooling holes.
+    * It is recommended
 1. Route out panel from larger PCB.  Limit size of PCB we're working with to maintain chem etch solution.
 1. Laser ablate spray paint in the PCB trace inverse to expose the copper for etching.
 1. Chem etch the PCB to isolate the traces.
 1. Laser ablate the spray paint on the solder pads.
 
+### PCB Milling Operations
 
-
-# TODO
-
-- [] Infill should not retrace.  Do bi-di laser cutting.
-- [] G2 format is wrong.  Getting rejected by LaserGRBL as an invalid code.
-    - Proper G2: From wherever you are, you will start. Specify the XY end point withing the G2 command.  I&J represent the center delta from the start point to the end of the arc.
-
-Another project: https://sourceforge.net/p/pygerber2gcode/code/ci/master/tree/
+* Milling operations are generated using `pcb2gcode`.  This is a command line program that reads information from configuration files.
+* `pcb2gcode` is called multiple times with different configuration files to generate the different G-code jobs (with different tools) required to machine out the PCB.
 
 
 ## KiCAD
@@ -37,6 +35,9 @@ Another project: https://sourceforge.net/p/pygerber2gcode/code/ci/master/tree/
 KiCAD Gerber export: disable the "Use extended X2 format" option.
 
 ## PCB2GCODE
+
+> Alternate software: https://sourceforge.net/p/pygerber2gcode/code/ci/master/tree/
+
 
 * This tool worked great for generating G-code.
     * Much easier to use than FlatCAM.
